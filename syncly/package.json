@@ -1,0 +1,28 @@
+{
+	"name": "syncly",
+	"version": "0.1.0",
+	"author": "The WordPress Contributors",
+	"license": "GPL-3.0+",
+	"main": "build/index.js",
+	"scripts": {
+		"build": "wp-scripts build --blocks-manifest",
+		"format": "wp-scripts format",
+		"lint:css": "wp-scripts lint-style",
+		"lint:js": "wp-scripts lint-js",
+		"packages-update": "wp-scripts packages-update",
+		"plugin-zip": "wp-scripts plugin-zip",
+		"start": "wp-scripts start --blocks-manifest",
+		"postinstall": "rm -f src/block.json && composer install"
+	},
+	"dependencies": {
+		"@woocommerce/components": "latest",
+		"@wordpress/hooks": "latest",
+		"@wordpress/i18n": "latest"
+	},
+	"devDependencies": {
+		"@woocommerce/dependency-extraction-webpack-plugin": "latest",
+		"@woocommerce/eslint-plugin": "latest",
+		"@wordpress/prettier-config": "latest",
+		"@wordpress/scripts": "^32.0.0"
+	}
+}
