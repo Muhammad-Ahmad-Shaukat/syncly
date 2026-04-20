@@ -62,7 +62,8 @@ const userValidation = {
     login: (req, res, next) => {
         const schema = Joi.object({
             email: Joi.string().email().required(),
-            password: Joi.string().required()
+            password: Joi.string().required(),
+            store_url: Joi.string().max(2048).optional()
         });
         const { error } = schema.validate(req.body);
         if (error) {

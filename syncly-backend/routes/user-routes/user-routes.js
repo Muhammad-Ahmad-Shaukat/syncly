@@ -94,6 +94,14 @@ const router = express.Router();
 
  *         password: { type: string, description: Account password }
 
+ *         store_url:
+
+ *           type: string
+
+ *           maxLength: 2048
+
+ *           description: Optional WooCommerce / client site URL (e.g. home URL)
+
  *     UpdateUserBody:
 
  *       type: object
@@ -491,6 +499,8 @@ async function loginUser(req, res) {
             data: user
 
         });
+
+        console.log('[users] login successful', { user });
 
     } catch (error) {
 
