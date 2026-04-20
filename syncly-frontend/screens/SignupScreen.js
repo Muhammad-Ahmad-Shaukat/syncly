@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { apiPaths } from '../config/api';
+import { authApi } from '../services/api';
 
 export default function SignupScreen({ onGoToLogin }) {
   const [username, setUsername] = useState('');
@@ -36,19 +36,14 @@ export default function SignupScreen({ onGoToLogin }) {
     }
     setLoading(true);
     try {
-      const res = await fetch(apiPaths.signup(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: u,
-          email: em,
-          password,
-          tierType: 'basic',
-        }),
+      const { ok, status, data } = await authApi.signup({
+        username: u,
+        email: em,
+        password,
+        tierType: 'basic',
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        Alert.alert('Sign up failed', json.error || `HTTP ${res.status}`);
+      if (!ok) {
+        Alert.alert('Sign up failed', data.error || `HTTP ${status}`);
         return;
       }
       Alert.alert('Account created', 'You can sign in now.', [

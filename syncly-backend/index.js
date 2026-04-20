@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import { sequelize } from "./db/db.js";
+import { sequelize, syncDatabase } from "./db/models.js";
 import userRoutes from './routes/user-routes/user-routes.js';
 
 dotenv.config();
@@ -46,11 +46,15 @@ sequelize
     .authenticate()
     .then(() => {
         console.log("MySQL connection OK (Sequelize)");
+        return syncDatabase();
+    })
+    .then(() => {
+        console.log("Database tables synced");
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
     })
     .catch((err) => {
-        console.error("Unable to connect to the database:", err.message);
+        console.error("Unable to connect or sync the database:", err.message);
         process.exit(1);
     });

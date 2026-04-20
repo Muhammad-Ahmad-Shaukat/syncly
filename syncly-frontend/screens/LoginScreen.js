@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { apiPaths } from '../config/api';
+import { authApi } from '../services/api';
 
 export default function LoginScreen({ onGoToSignup }) {
   const [email, setEmail] = useState('');
@@ -25,17 +25,12 @@ export default function LoginScreen({ onGoToSignup }) {
     }
     setLoading(true);
     try {
-      const res = await fetch(apiPaths.login(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed, password }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        Alert.alert('Sign in failed', json.error || `HTTP ${res.status}`);
+      const { ok, status, data } = await authApi.login(trimmed, password);
+      if (!ok) {
+        Alert.alert('Sign in failed', data.error || `HTTP ${status}`);
         return;
       }
-      Alert.alert('Welcome', `Signed in as ${json.data?.username || trimmed}`);
+      Alert.alert('Welcome', `Signed in as ${data.data?.username || trimmed}`);
     } catch (e) {
       Alert.alert(
         'Network error',
