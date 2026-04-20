@@ -1,10 +1,27 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import swaggerJsdoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express";
+import { sequelize } from "./db/db.js";
+import userRoutes from './routes/user-routes/user-routes.js';
 
 dotenv.config();
 
 const app = express();
+
+const swaggerSpec = swaggerJsdoc({
+    definition: {
+        openapi: "3.0.3",
+        info: {
+            title: "Syncly API",
+            version: "1.0.0",
+            description: "HTTP API for Syncly (user management)",
+        },
+        servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
+    },
+    apis: ["./routes/user-routes/user-routes.js"],
+});
 
 const corsOptions = {
     origin: "*",
@@ -13,11 +30,27 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (req, res) => {
     res.send("Syncly Backend is running");
 });
 
-app.listen(3000, () => {
-    console.log("Server is running on port 3000");
-});
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use('/api/users', userRoutes);
+
+const PORT = Number(process.env.PORT || 3000);
+
+sequelize
+    .authenticate()
+    .then(() => {
+        console.log("MySQL connection OK (Sequelize)");
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error("Unable to connect to the database:", err.message);
+        process.exit(1);
+    });
