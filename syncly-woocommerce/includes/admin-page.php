@@ -42,8 +42,6 @@ function syncly_admin_page() {
 
             if (isset($result['token'])) {
                 update_option('syncly_token', $result['token']);
-                update_option('syncly_store_id', $result['store_id'] ?? '');
-
                 echo "<script>location.reload();</script>";
             } else {
                 $msg = $result['error'] ?? 'Invalid credentials';

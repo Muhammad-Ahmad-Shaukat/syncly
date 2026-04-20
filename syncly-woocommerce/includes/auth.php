@@ -1,30 +1,53 @@
 <?php
 
+if (!defined('ABSPATH')) exit;
+
+require_once __DIR__ . '/api-client.php';
+
+/**
+ * Login against POST /api/users/login (same contract as syncly_api_login).
+ * On success the API returns { success, message, data: user, token }; JWT expires in 90 days.
+ *
+ * @return array{token: string}|array{error: string}
+ */
 function syncly_login_user($email, $password) {
 
-    $response = wp_remote_post($_ENV['SYNCLY_API_URL'] . '/users/login', [
-        'body' => json_encode([
+    $login_url = syncly_login_endpoint_url();
+    if ($login_url === '') {
+        return ['error' => 'API URL not set'];
+    }
+
+    $response = wp_remote_post($login_url, [
+        'body' => wp_json_encode([
             'email' => $email,
             'password' => $password,
-            'store_url' => home_url()
+            'store_url' => home_url(),
         ]),
         'headers' => [
-            'Content-Type' => 'application/json'
-        ]
+            'Content-Type' => 'application/json',
+        ],
+        'timeout' => 15,
     ]);
 
     if (is_wp_error($response)) {
-        echo "<p style='color:red'>Connection failed</p>";
-        return;
+        return ['error' => 'Connection failed'];
     }
 
-    $body = json_decode(wp_remote_retrieve_body($response), true);
+    $raw = wp_remote_retrieve_body($response);
+    $body = json_decode($raw, true);
+    if (!is_array($body)) {
+        return ['error' => 'Invalid response'];
+    }
 
-    if (isset($body['token'])) {
+    if (!empty($body['success']) && !empty($body['token'])) {
         update_option('syncly_token', $body['token']);
-        update_option('syncly_store_id', $body['store_id']);
-        echo "<script>location.reload();</script>";
-    } else {
-        echo "<p style='color:red'>Invalid credentials</p>";
+        return ['token' => $body['token']];
     }
+
+    if (!empty($body['error'])) {
+        $err = $body['error'];
+        return ['error' => is_string($err) ? $err : 'Login failed'];
+    }
+
+    return ['error' => 'Invalid credentials'];
 }
