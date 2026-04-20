@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { authApi } from '../services/api';
 
-export default function LoginScreen({ onGoToSignup }) {
+export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,11 +87,6 @@ export default function LoginScreen({ onGoToSignup }) {
           )}
         </Pressable>
 
-        <Pressable style={styles.secondaryWrap} onPress={onGoToSignup} disabled={loading}>
-          <Text style={styles.secondaryText}>
-            No account? <Text style={styles.secondaryBold}>Create one</Text>
-          </Text>
-        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -156,18 +151,6 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryWrap: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  secondaryText: {
-    color: '#9aa3b5',
-    fontSize: 15,
-  },
-  secondaryBold: {
-    color: '#8eabff',
     fontWeight: '600',
   },
 });

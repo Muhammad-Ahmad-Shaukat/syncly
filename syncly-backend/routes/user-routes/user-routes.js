@@ -82,6 +82,18 @@ const router = express.Router();
 
  *           default: basic
 
+ *     LoginBody:
+
+ *       type: object
+
+ *       required: [email, password]
+
+ *       properties:
+
+ *         email: { type: string, format: email }
+
+ *         password: { type: string, description: Account password }
+
  *     UpdateUserBody:
 
  *       type: object
@@ -328,7 +340,143 @@ router.post('/users', userValidation.createUser, async (req, res) => {
 
 
 
-router.post('/users/login', userValidation.login, async (req, res) => {
+/**
+
+ * @openapi
+
+ * /api/users/login:
+
+ *   post:
+
+ *     tags: [Users]
+
+ *     summary: Sign in with email and password
+
+ *     description: Authenticates an active user and returns public user fields (password omitted).
+
+ *     requestBody:
+
+ *       required: true
+
+ *       content:
+
+ *         application/json:
+
+ *           schema:
+
+ *             $ref: '#/components/schemas/LoginBody'
+
+ *     responses:
+
+ *       200:
+
+ *         description: Signed in successfully
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               $ref: '#/components/schemas/ApiSuccessUser'
+
+ *       400:
+
+ *         description: Validation error, deactivated account, or temporarily locked account
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               oneOf:
+
+ *                 - $ref: '#/components/schemas/ApiError'
+
+ *                 - $ref: '#/components/schemas/ValidationError'
+
+ *       401:
+
+ *         description: Invalid email or password
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               $ref: '#/components/schemas/ApiError'
+
+ * /api/users/users/login:
+
+ *   post:
+
+ *     tags: [Users]
+
+ *     summary: Sign in (legacy path)
+
+ *     description: Same behavior as POST /api/users/login. Kept for backward compatibility.
+
+ *     requestBody:
+
+ *       required: true
+
+ *       content:
+
+ *         application/json:
+
+ *           schema:
+
+ *             $ref: '#/components/schemas/LoginBody'
+
+ *     responses:
+
+ *       200:
+
+ *         description: Signed in successfully
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               $ref: '#/components/schemas/ApiSuccessUser'
+
+ *       400:
+
+ *         description: Validation error, deactivated account, or temporarily locked account
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               oneOf:
+
+ *                 - $ref: '#/components/schemas/ApiError'
+
+ *                 - $ref: '#/components/schemas/ValidationError'
+
+ *       401:
+
+ *         description: Invalid email or password
+
+ *         content:
+
+ *           application/json:
+
+ *             schema:
+
+ *               $ref: '#/components/schemas/ApiError'
+
+ */
+
+async function loginUser(req, res) {
+
+    console.log('[users] login called', { email: req.body?.email, path: req.path });
 
     try {
 
@@ -358,7 +506,11 @@ router.post('/users/login', userValidation.login, async (req, res) => {
 
     }
 
-});
+}
+
+router.post('/login', userValidation.login, loginUser);
+
+router.post('/users/login', userValidation.login, loginUser);
 
 
 

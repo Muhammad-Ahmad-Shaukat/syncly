@@ -5,7 +5,8 @@ const defaultBase =
 
 /**
  * Backend base URL (no trailing slash).
- * Set EXPO_PUBLIC_API_URL in .env — required for physical devices.
+ * Set EXPO_PUBLIC_API_URL in .env — required for physical devices (scheme + host, no trailing /api;
+ * service paths already include /api/users/...).
  * Legacy: FRONTEND_URL was used earlier; still honored if EXPO_PUBLIC_API_URL is unset.
  */
 export function getApiBase() {
