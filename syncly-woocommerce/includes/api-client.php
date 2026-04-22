@@ -3,7 +3,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Base URL for Syncly API (no trailing slash). From wp-config constant, .env, or getenv.
+ * Base URL for Syncly API (no trailing slash).
  */
 function syncly_get_api_base() {
     if (defined('SYNCLY_API_URL') && SYNCLY_API_URL) {
@@ -22,47 +22,66 @@ function syncly_get_api_base() {
 }
 
 /**
- * Full URL for POST .../api/users/login (supports base ending with /api or host-only).
+ * Resolve API endpoint from base.
  */
-function syncly_login_endpoint_url() {
+function syncly_api_url($path) {
     $base = syncly_get_api_base();
-    if ($base === '') {
-        return '';
-    }
-    $len = strlen($base);
-    if ($len >= 4 && substr($base, -4) === '/api') {
-        return $base . '/users/login';
-    }
-    return $base . '/api/users/login';
+    if ($base === '') return '';
+    return $base . '/' . ltrim($path, '/');
 }
 
 /**
- * Login request to Syncly backend
+ * Perform JSON API request to Syncly backend.
  */
-function syncly_api_login($email, $password) {
-
-    $login_url = syncly_login_endpoint_url();
-    if (!$login_url) {
-        return ['error' => 'API URL not set'];
+function syncly_api_request($method, $path, $body = null, $token = '') {
+    $url = syncly_api_url($path);
+    if (!$url) {
+        return ['success' => false, 'error' => 'API URL not set'];
     }
 
-    $response = wp_remote_post($login_url, [
-        'body' => wp_json_encode([
-            'email' => $email,
-            'password' => $password,
-            'store_url' => home_url()
-        ]),
-        'headers' => [
-            'Content-Type' => 'application/json'
-        ],
+    $headers = ['Content-Type' => 'application/json'];
+    if (!empty($token)) {
+        $headers['Authorization'] = 'Bearer ' . $token;
+    }
+    $args = [
+        'method' => strtoupper($method),
+        'headers' => $headers,
         'timeout' => 15
-    ]);
+    ];
+    if (!is_null($body)) {
+        $args['body'] = wp_json_encode($body);
+    }
+
+    $response = wp_remote_request($url, $args);
 
     if (is_wp_error($response)) {
-        return ['error' => 'Connection failed'];
+        return ['success' => false, 'error' => 'Connection failed'];
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
-
+    if (!is_array($body)) {
+        return ['success' => false, 'error' => 'Invalid response'];
+    }
     return $body;
+}
+
+function syncly_api_exchange_connector($email, $password, $plugin_callback_url) {
+    return syncly_api_request('POST', 'api/connectors/woocommerce/auth/exchange', [
+        'email' => $email,
+        'password' => $password,
+        'store_url' => home_url(),
+        'store_name' => get_bloginfo('name'),
+        'plugin_callback_url' => $plugin_callback_url
+    ]);
+}
+
+function syncly_api_refresh_connector($store_id, $refresh_token) {
+    return syncly_api_request('POST', 'api/connectors/woocommerce/auth/refresh', [
+        'store_id' => (int) $store_id,
+        'refresh_token' => $refresh_token
+    ]);
+}
+
+function syncly_api_get_diagnostics($store_id) {
+    return syncly_api_request('GET', 'api/connectors/woocommerce/sync/diagnostics/' . (int) $store_id);
 }

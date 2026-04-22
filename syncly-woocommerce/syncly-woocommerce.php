@@ -45,6 +45,10 @@ if (!defined('SYNCLY_API_URL')) {
  * Includes
  */
 require_once SYNCLY_PATH . 'includes/api-client.php';
+require_once SYNCLY_PATH . 'includes/connector-state.php';
+require_once SYNCLY_PATH . 'includes/sync-engine.php';
+require_once SYNCLY_PATH . 'includes/rest-endpoints.php';
+require_once SYNCLY_PATH . 'includes/event-hooks.php';
 require_once SYNCLY_PATH . 'includes/admin-page.php';
 
 /**
@@ -60,3 +64,25 @@ add_action('admin_menu', function () {
         'dashicons-update'
     );
 });
+
+register_activation_hook(__FILE__, function () {
+    if (!wp_next_scheduled('syncly_dispatch_queue_cron')) {
+        wp_schedule_event(time() + 60, 'minute', 'syncly_dispatch_queue_cron');
+    }
+});
+
+register_deactivation_hook(__FILE__, function () {
+    wp_clear_scheduled_hook('syncly_dispatch_queue_cron');
+});
+
+add_filter('cron_schedules', function ($schedules) {
+    if (!isset($schedules['minute'])) {
+        $schedules['minute'] = [
+            'interval' => 60,
+            'display' => 'Every Minute',
+        ];
+    }
+    return $schedules;
+});
+
+add_action('syncly_dispatch_queue_cron', 'syncly_run_dispatch_queue');

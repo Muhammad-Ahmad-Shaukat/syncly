@@ -47,6 +47,42 @@ const Store = sequelize.define('Store', {
     is_active: {
         type: DataTypes.BOOLEAN,
         defaultValue: true
+    },
+    connector_access_token: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Short-lived connector access token for plugin-to-backend calls'
+    },
+    connector_refresh_token: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: 'Refresh token for connector access token rotation'
+    },
+    connector_token_issued_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    connector_token_expires_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    connector_token_revoked_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    connector_last_used_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    plugin_callback_url: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Plugin REST endpoint base used for backend -> Woo push commands'
+    },
+    webhook_secret: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Shared secret for backend signed commands to plugin'
     }
 }, {
     tableName: 'stores',

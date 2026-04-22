@@ -131,6 +131,24 @@ const Product = sequelize.define('Product', {
         type: DataTypes.DATE,
         allowNull: true
     },
+    source: {
+        type: DataTypes.ENUM('backend', 'woocommerce'),
+        allowNull: false,
+        defaultValue: 'woocommerce'
+    },
+    source_updated_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    version: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1
+    },
+    sync_hash: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
 
     raw_platform_data: {
         type: DataTypes.JSON,

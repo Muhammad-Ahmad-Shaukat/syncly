@@ -5,6 +5,8 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { sequelize, syncDatabase } from "./db/models.js";
 import userRoutes from './routes/user-routes/user-routes.js';
+import woocommerceRoutes from "./routes/connectors/woocommerce-routes.js";
+import { startSyncWorker } from "./services/sync/worker.js";
 
 dotenv.config();
 
@@ -39,6 +41,7 @@ app.get("/", (req, res) => {
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api/users', userRoutes);
+app.use("/api/connectors/woocommerce", woocommerceRoutes);
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -50,6 +53,7 @@ sequelize
     })
     .then(() => {
         console.log("Database tables synced");
+        startSyncWorker();
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
