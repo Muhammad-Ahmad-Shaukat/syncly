@@ -7,15 +7,15 @@ if (!defined('ABSPATH')) exit;
  */
 function syncly_get_api_base() {
     if (defined('SYNCLY_API_URL') && SYNCLY_API_URL) {
-        return rtrim((string) SYNCLY_API_URL, '/');
+        return rtrim(trim((string) SYNCLY_API_URL), '/');
     }
     if (isset($_ENV['SYNCLY_API_URL']) && $_ENV['SYNCLY_API_URL'] !== '') {
-        return rtrim((string) $_ENV['SYNCLY_API_URL'], '/');
+        return rtrim(trim((string) $_ENV['SYNCLY_API_URL']), '/');
     }
     if (function_exists('getenv')) {
         $g = getenv('SYNCLY_API_URL');
         if ($g !== false && $g !== '') {
-            return rtrim((string) $g, '/');
+            return rtrim(trim((string) $g), '/');
         }
     }
     return '';
@@ -27,7 +27,11 @@ function syncly_get_api_base() {
 function syncly_api_url($path) {
     $base = syncly_get_api_base();
     if ($base === '') return '';
-    return $base . '/' . ltrim($path, '/');
+    $normalizedPath = ltrim($path, '/');
+    if (substr($base, -4) === '/api' && strpos($normalizedPath, 'api/') === 0) {
+        $normalizedPath = substr($normalizedPath, 4);
+    }
+    return $base . '/' . $normalizedPath;
 }
 
 /**

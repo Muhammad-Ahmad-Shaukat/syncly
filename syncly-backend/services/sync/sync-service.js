@@ -15,6 +15,19 @@ function hashPayload(payload) {
     return crypto.createHash("sha256").update(JSON.stringify(payload || {})).digest("hex");
 }
 
+function parsePayload(payload) {
+    let parsed = payload;
+    for (let i = 0; i < 3; i += 1) {
+        if (typeof parsed !== "string") break;
+        try {
+            parsed = JSON.parse(parsed);
+        } catch {
+            return {};
+        }
+    }
+    return parsed && typeof parsed === "object" ? parsed : {};
+}
+
 function modelForEntity(entityType) {
     if (entityType === "product") return Product;
     if (entityType === "order") return Order;
@@ -103,6 +116,8 @@ export async function upsertCanonicalRecord({ storeId, entityType, data, origin 
         modelDefaults.price = data.price ?? null;
         modelDefaults.inventory_quantity = data.inventory_quantity ?? null;
         modelDefaults.sku = data.sku || null;
+        modelDefaults.image_url = data.image_url || null;
+        modelDefaults.image_alt_text = data.image_alt_text || null;
     }
     if (entityType === "order") {
         modelDefaults.order_number = data.order_number || null;
@@ -150,10 +165,13 @@ export async function upsertCanonicalRecord({ storeId, entityType, data, origin 
 export async function processJob(job) {
     try {
         await job.update({ status: "processing", attempts: job.attempts + 1 });
-        const payload = job.payload || {};
+        const payload = parsePayload(job.payload);
 
         if (job.queue_type === "ingest") {
             const records = Array.isArray(payload.records) ? payload.records : [payload.record].filter(Boolean);
+            if (records.length === 0) {
+                throw new Error("Ingest payload has no records");
+            }
             for (const record of records) {
                 await upsertCanonicalRecord({
                     storeId: job.store_id,
@@ -167,6 +185,9 @@ export async function processJob(job) {
             const store = await Store.findByPk(job.store_id);
             if (!store?.plugin_callback_url || !store?.webhook_secret) {
                 throw new Error("Store callback URL or webhook secret is missing");
+            }
+            if (!payload.command || typeof payload.command !== "object") {
+                throw new Error("Dispatch payload has no command");
             }
             const response = await fetch(`${store.plugin_callback_url}/commands`, {
                 method: "POST",
@@ -183,6 +204,10 @@ export async function processJob(job) {
         }
 
         await job.update({ status: "completed", next_attempt_at: new Date(), last_error: null });
+        await SyncEventLog.update(
+            { status: "processed", error_message: null },
+            { where: { store_id: job.store_id, idempotency_key: job.idempotency_key } }
+        );
         return true;
     } catch (error) {
         const nextDelayMs = Math.min(2 ** job.attempts * 1000, 5 * 60 * 1000);
@@ -203,6 +228,10 @@ export async function processJob(job) {
                 error_message: error.message
             });
         }
+        await SyncEventLog.update(
+            { status: exhausted ? "failed" : "queued", error_message: error.message },
+            { where: { store_id: job.store_id, idempotency_key: job.idempotency_key } }
+        );
         return false;
     }
 }

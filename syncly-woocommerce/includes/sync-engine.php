@@ -6,6 +6,21 @@ const SYNCLY_OPTION_SYNC_QUEUE = 'syncly_sync_queue';
 const SYNCLY_OPTION_LAST_SYNC_STATUS = 'syncly_last_sync_status';
 const SYNCLY_OPTION_SUPPRESSION = 'syncly_suppressed_events';
 
+if (!function_exists('syncly_get_product_image_data')) {
+    function syncly_get_product_image_data($product) {
+        $image_id = (int) $product->get_image_id();
+        if ($image_id <= 0) {
+            return ['image_url' => '', 'image_alt_text' => ''];
+        }
+        $image_url = wp_get_attachment_url($image_id);
+        $image_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+        return [
+            'image_url' => $image_url ? $image_url : '',
+            'image_alt_text' => is_string($image_alt) ? $image_alt : '',
+        ];
+    }
+}
+
 function syncly_build_idempotency_key($entity, $operation, $external_id) {
     return sha1($entity . ':' . $operation . ':' . $external_id . ':' . microtime(true));
 }
@@ -87,6 +102,7 @@ function syncly_collect_initial_batch($entity, $page = 1, $per_page = 50) {
     if ($entity === 'product') {
         $items = wc_get_products(['limit' => $per_page, 'page' => $page, 'status' => ['publish', 'draft', 'private']]);
         return array_map(function($product) {
+            $image_data = syncly_get_product_image_data($product);
             return [
                 'id' => $product->get_id(),
                 'title' => $product->get_name(),
@@ -94,6 +110,8 @@ function syncly_collect_initial_batch($entity, $page = 1, $per_page = 50) {
                 'price' => $product->get_price(),
                 'inventory_quantity' => $product->get_stock_quantity(),
                 'sku' => $product->get_sku(),
+                'image_url' => $image_data['image_url'],
+                'image_alt_text' => $image_data['image_alt_text'],
                 'updated_at' => $product->get_date_modified() ? $product->get_date_modified()->date('c') : gmdate('c')
             ];
         }, $items);

@@ -2,9 +2,25 @@
 
 if (!defined('ABSPATH')) exit;
 
+if (!function_exists('syncly_get_product_image_data')) {
+    function syncly_get_product_image_data($product) {
+        $image_id = (int) $product->get_image_id();
+        if ($image_id <= 0) {
+            return ['image_url' => '', 'image_alt_text' => ''];
+        }
+        $image_url = wp_get_attachment_url($image_id);
+        $image_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+        return [
+            'image_url' => $image_url ? $image_url : '',
+            'image_alt_text' => is_string($image_alt) ? $image_alt : '',
+        ];
+    }
+}
+
 function syncly_build_product_payload($product_id) {
     $product = wc_get_product($product_id);
     if (!$product) return null;
+    $image_data = syncly_get_product_image_data($product);
     return [
         'id' => $product->get_id(),
         'title' => $product->get_name(),
@@ -12,6 +28,8 @@ function syncly_build_product_payload($product_id) {
         'price' => $product->get_price(),
         'inventory_quantity' => $product->get_stock_quantity(),
         'sku' => $product->get_sku(),
+        'image_url' => $image_data['image_url'],
+        'image_alt_text' => $image_data['image_alt_text'],
         'updated_at' => $product->get_date_modified() ? $product->get_date_modified()->date('c') : gmdate('c')
     ];
 }
