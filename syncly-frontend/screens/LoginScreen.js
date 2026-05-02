@@ -35,7 +35,7 @@ export default function LoginScreen() {
       Alert.alert(
         'Network error',
         e?.message ||
-          'Could not reach the server. Check that the API is running and EXPO_PUBLIC_API_URL if you use a physical device.'
+        'Could not reach the server. Check that the API is running and EXPO_PUBLIC_API_URL if you use a physical device.'
       );
     } finally {
       setLoading(false);
