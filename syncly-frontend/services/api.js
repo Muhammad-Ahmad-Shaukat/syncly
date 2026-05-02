@@ -22,72 +22,70 @@ function redactForLog(value) {
   return out;
 }
 
-function logApi(label, payload) {
-  if (__DEV__) {
-    console.log(`[api] ${label}`, payload);
-  }
-}
 
-function logApiError(label, payload) {
-  console.warn(`[api] ${label}`, payload);
-}
 
 /**
  * @param {string} path - e.g. "/api/users/users" (leading slash optional)
  * @param {{ method?: string, body?: object, headers?: Record<string, string> }} options
  * @returns {Promise<{ ok: boolean, status: number, data: object }>}
  */
-export async function apiRequest(path, options = {}) {
-  const { method = 'GET', body, headers = {} } = options;
-  const base = getApiBase();
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  const url = `${base}${normalized}`;
 
-  logApi('request', {
-    method,
-    url,
-    body: body !== undefined ? redactForLog(body) : undefined,
-  });
-
-  const init = {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...headers,
-    },
-  };
-
-  if (body !== undefined && method !== 'GET' && method !== 'HEAD') {
-    init.headers['Content-Type'] = 'application/json';
-    init.body = JSON.stringify(body);
-  }
-
-  try {
-    const res = await fetch(url, init);
-    const text = await res.text();
-    let data = {};
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { error: text || 'Invalid response' };
-      }
-    }
-
-    logApi('response', { method, url, status: res.status, ok: res.ok });
-
-    return { ok: res.ok, status: res.status, data };
-  } catch (err) {
-    const message = err?.message || 'Network request failed';
-    logApiError('network', { method, url, message });
-    return {
-      ok: false,
-      status: 0,
-      data: { error: message },
-    };
-  }
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function success(data) {
+  return { ok: true, status: 200, data };
+}
+
+function failure(message) {
+  return { ok: false, status: 400, data: { error: message } };
+}
+
+export async function apiRequest(path, options = {}) {
+  await delay(250);
+
+  if (!path) {
+    return failure('Missing request path.');
+  }
+
+  return success({
+    path,
+    method: options.method || 'GET',
+    placeholder: true,
+  });
+}
+
+export const authApi = {
+  login: async (email, password) => {
+    await delay(450);
+
+    if (!String(email || '').trim() || !String(password || '').trim()) {
+      return failure('Email and password are required.');
+    }
+
+    return success({
+      username: String(email).trim().toLowerCase().split('@')[0] || 'admin',
+      email: String(email).trim().toLowerCase(),
+      token: 'mock-token',
+    });
+  },
+  signup: async (payload) => {
+    await delay(450);
+
+    if (!payload || !payload.email || !payload.password || !payload.username) {
+      return failure('Username, email, and password are required.');
+    }
+
+    return success({
+      created: true,
+      user: {
+        username: payload.username,
+        email: String(payload.email).trim().toLowerCase(),
+      },
+    });
+  },
+};
 export const authApi = {
   login: (email, password) =>
     apiRequest('/api/users/login', {

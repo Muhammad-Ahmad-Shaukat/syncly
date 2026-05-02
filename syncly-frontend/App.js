@@ -1,11 +1,5 @@
-import { StatusBar } from 'expo-status-bar';
-import LoginScreen from './screens/LoginScreen';
+import AppShell from './navigation/AppShell';
 
 export default function App() {
-  return (
-    <>
-      <StatusBar style="light" />
-      <LoginScreen />
-    </>
-  );
+  return <AppShell />;
 }

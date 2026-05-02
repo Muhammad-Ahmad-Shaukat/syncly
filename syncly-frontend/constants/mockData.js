@@ -1,0 +1,68 @@
+export const mockProducts = [
+  {
+    id: 'p-1001',
+    name: 'Nordic Desk Lamp',
+    price: 79,
+    stock: 24,
+    category: 'Home',
+    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=900&q=80',
+    description: 'Minimal LED lamp with warm ambient lighting.',
+  },
+  {
+    id: 'p-1002',
+    name: 'Canvas Office Chair',
+    price: 219,
+    stock: 11,
+    category: 'Office',
+    image: 'https://images.unsplash.com/photo-1505798577917-a65157d3320d?auto=format&fit=crop&w=900&q=80',
+    description: 'Comfort-focused chair with breathable fabric.',
+  },
+  {
+    id: 'p-1003',
+    name: 'Studio Speaker',
+    price: 149,
+    stock: 7,
+    category: 'Audio',
+    image: 'https://images.unsplash.com/photo-1518441310015-5f10c0b18b62?auto=format&fit=crop&w=900&q=80',
+    description: 'Compact wireless speaker for modern workspaces.',
+  },
+  {
+    id: 'p-1004',
+    name: 'Matte Bottle',
+    price: 34,
+    stock: 52,
+    category: 'Lifestyle',
+    image: 'https://images.unsplash.com/photo-1526401485004-2aa6f3f4c0bb?auto=format&fit=crop&w=900&q=80',
+    description: 'Reusable bottle with soft-touch finish.',
+  },
+];
+
+export const mockOrders = [
+  {
+    id: 'ORD-2041',
+    customerName: 'Ava Johnson',
+    status: 'Completed',
+    totalPrice: 298,
+    itemCount: 3,
+    productNames: ['Canvas Office Chair', 'Matte Bottle'],
+    createdAt: '2026-04-28',
+  },
+  {
+    id: 'ORD-2042',
+    customerName: 'Liam Carter',
+    status: 'Pending',
+    totalPrice: 79,
+    itemCount: 1,
+    productNames: ['Nordic Desk Lamp'],
+    createdAt: '2026-04-30',
+  },
+  {
+    id: 'ORD-2043',
+    customerName: 'Sofia Patel',
+    status: 'Cancelled',
+    totalPrice: 149,
+    itemCount: 1,
+    productNames: ['Studio Speaker'],
+    createdAt: '2026-05-01',
+  },
+];
