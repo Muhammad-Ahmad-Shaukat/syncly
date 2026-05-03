@@ -12,7 +12,6 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Osiset\ShopifyApp\Objects\Values\ShopDomain;
-use App\Repositories\Order\OrderRepositoryInterface;
 use Osiset\ShopifyApp\Contracts\Queries\Shop as IShopQuery;
 
 class OrdersCreateJob implements ShouldQueue
@@ -62,7 +61,6 @@ class OrdersCreateJob implements ShouldQueue
         $shop = $shopQuery->getByDomain($this->shopDomain);
         $user = User::where('name', $shop->name)->first();
         $payload = $this->data;
-        $this->getOrderRepository(app(OrderRepositoryInterface::class));
         if($this->storeData($payload , $user)){
             $this->logInfo("Order Create Job Successfully Completed");
         }

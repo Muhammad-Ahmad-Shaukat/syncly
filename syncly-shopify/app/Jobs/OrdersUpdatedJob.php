@@ -13,7 +13,6 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Osiset\ShopifyApp\Objects\Values\ShopDomain;
-use App\Repositories\Order\OrderRepositoryInterface;
 use Osiset\ShopifyApp\Contracts\Queries\Shop as IShopQuery;
 
 class OrdersUpdatedJob implements ShouldQueue
@@ -63,8 +62,6 @@ class OrdersUpdatedJob implements ShouldQueue
         $shop = $shopQuery->getByDomain($this->shopDomain);
         $user = User::where('name', $shop->name)->first();
         $payload = $this->data;
-
-        $this->getOrderRepository(app(OrderRepositoryInterface::class));
 
         if ($this->storeData($payload, $user, true)) {
             $this->logInfo("Order Update Job Successfully");

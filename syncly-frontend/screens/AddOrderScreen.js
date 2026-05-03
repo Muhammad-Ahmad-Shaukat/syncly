@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import Screen from '../components/Screen';
@@ -7,70 +7,114 @@ import Badge from '../components/Badge';
 import CustomButton from '../components/CustomButton';
 import CustomInput from '../components/CustomInput';
 import Header from '../components/Header';
-import { useAppState } from '../hooks/useAppState';
 import { useThemePalette } from '../hooks/useThemePalette';
+import { apiRequest } from '../services/api';
 
 function currency(value) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(Number(value || 0));
 }
 
 export default function AddOrderScreen() {
   const palette = useThemePalette();
-  const { products, addOrder } = useAppState();
+  const [stores, setStores] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [storeId, setStoreId] = useState(null);
   const [customerName, setCustomerName] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [quantity, setQuantity] = useState('1');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const selectedProducts = products.filter((product) => selectedProductIds.includes(product.id));
-  const total = selectedProducts.reduce((sum, product) => sum + product.price, 0) * Math.max(Number(quantity) || 1, 1);
+  const load = useCallback(async () => {
+    const [s, p] = await Promise.all([apiRequest('/api/mobile/stores'), apiRequest('/api/mobile/products')]);
+    if (s.ok && s.data?.data?.length) {
+      setStores(s.data.data);
+      setStoreId((cur) => cur || s.data.data[0].id);
+    }
+    if (p.ok && p.data?.data) setProducts(p.data.data);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filteredProducts = storeId ? products.filter((pr) => pr.store_id === storeId) : products;
+
+  const selectedProducts = filteredProducts.filter((product) => selectedProductIds.includes(product.id));
+  const total =
+    selectedProducts.reduce((sum, product) => sum + Number(product.price || 0), 0) * Math.max(Number(quantity) || 1, 1);
 
   function toggleProduct(id) {
     setSelectedProductIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   }
 
-  function handleSubmit() {
-    if (!customerName.trim() || selectedProducts.length === 0) {
-      setError('Add a customer name and select at least one product.');
+  async function handleSubmit() {
+    if (!storeId || !customerName.trim() || selectedProducts.length === 0) {
+      setError('Pick a store, customer name, and at least one product.');
       return;
     }
-
     setError('');
     setSubmitting(true);
-
-    setTimeout(() => {
-      addOrder({
-        customerName: customerName.trim(),
-        status: 'Pending',
-        totalPrice: total,
-        itemCount: selectedProducts.length * Math.max(Number(quantity) || 1, 1),
-        productNames: selectedProducts.map((product) => product.name),
-      });
-
-      setCustomerName('');
-      setSelectedProductIds([]);
-      setQuantity('1');
-      setSubmitting(false);
-    }, 700);
+    const { ok, data } = await apiRequest('/api/mobile/orders', {
+      method: 'POST',
+      body: {
+        store_id: storeId,
+        order_number: `${customerName.trim().slice(0, 24)}-${Date.now()}`,
+        total_amount: total,
+      },
+    });
+    setSubmitting(false);
+    if (!ok) {
+      setError(data?.error || 'Could not create order.');
+      return;
+    }
+    setCustomerName('');
+    setSelectedProductIds([]);
+    setQuantity('1');
   }
 
   return (
     <Screen scroll keyboardAvoiding>
       <View style={styles.container}>
-        <Header title="Add Order" subtitle="Select products and create a clean mock order." />
+        <Header title="Add Order" subtitle="Creates a backend order row and queues connector dispatch." />
 
         <Card>
-          <CustomInput label="Customer name" value={customerName} onChangeText={setCustomerName} placeholder="Jane Doe" />
-          <CustomInput label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="1" />
-
-          <Text style={[styles.sectionLabel, { color: palette.text }]}>Select products</Text>
+          <Text style={[styles.sectionLabel, { color: palette.text }]}>Store</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productScroll}>
-            {products.map((product) => {
+            {stores.map((s) => {
+              const selected = storeId === s.id;
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => {
+                    setStoreId(s.id);
+                    setSelectedProductIds([]);
+                  }}
+                  style={[
+                    styles.productChip,
+                    {
+                      backgroundColor: selected ? palette.primarySoft : palette.surfaceSoft,
+                      borderColor: selected ? palette.primary : palette.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.productChipTitle, { color: palette.text }]}>{s.store_name}</Text>
+                  <Text style={[styles.productChipSubtitle, { color: palette.textMuted }]}>{s.platform}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <CustomInput label="Customer / label" value={customerName} onChangeText={setCustomerName} placeholder="Jane Doe" />
+          <CustomInput label="Quantity multiplier" value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="1" />
+
+          <Text style={[styles.sectionLabel, { color: palette.text }]}>Products (this store)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productScroll}>
+            {filteredProducts.map((product) => {
               const selected = selectedProductIds.includes(product.id);
 
               return (
@@ -85,7 +129,7 @@ export default function AddOrderScreen() {
                     },
                   ]}
                 >
-                  <Text style={[styles.productChipTitle, { color: palette.text }]}>{product.name}</Text>
+                  <Text style={[styles.productChipTitle, { color: palette.text }]}>{product.title}</Text>
                   <Text style={[styles.productChipSubtitle, { color: palette.textMuted }]}>{currency(product.price)}</Text>
                 </Pressable>
               );
@@ -116,10 +160,11 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    paddingBottom: 32,
   },
   sectionLabel: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginTop: 4,
     marginBottom: 10,
   },
@@ -136,7 +181,7 @@ const styles = StyleSheet.create({
   },
   productChipTitle: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 6,
   },
   productChipSubtitle: {
@@ -156,7 +201,7 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '800',
     marginBottom: 10,
   },
   badgeRow: {

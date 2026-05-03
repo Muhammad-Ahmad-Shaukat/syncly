@@ -31,13 +31,13 @@ export default function CustomButton({ title, onPress, loading = false, tone = '
 const styles = StyleSheet.create({
   button: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
+    paddingHorizontal: 24,
   },
   buttonText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

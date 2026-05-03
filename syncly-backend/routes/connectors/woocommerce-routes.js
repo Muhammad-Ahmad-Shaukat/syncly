@@ -7,10 +7,15 @@ import {
     ingestBatch,
     ingestDelta,
     syncDiagnostics
-} from "../../controllers/connectors/woocommerce-auth-controller.js";
+} from "../../controllers/connectors/connector-auth-controller.js";
 import { verifyConnectorToken } from "../../middlewares/verify-connector-token.js";
 
 const router = express.Router();
+
+router.use((req, res, next) => {
+    req.synclyPlatform = "woocommerce";
+    next();
+});
 
 router.post("/auth/exchange", connectorExchange);
 router.post("/auth/refresh", connectorRefresh);

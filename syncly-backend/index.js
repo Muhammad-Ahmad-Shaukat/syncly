@@ -6,7 +6,12 @@ import swaggerUi from "swagger-ui-express";
 import { sequelize, syncDatabase } from "./db/models.js";
 import userRoutes from './routes/user-routes/user-routes.js';
 import woocommerceRoutes from "./routes/connectors/woocommerce-routes.js";
+import shopifyRoutes from "./routes/connectors/shopify-routes.js";
+import mobileRouter from "./routes/mobile-router.js";
+import billingRoutes from "./routes/billing-routes.js";
+import stripeWebhookRouter from "./routes/stripe-webhook.js";
 import { startSyncWorker } from "./services/sync/worker.js";
+import { startEmailCampaignWorker } from "./services/email-campaign-worker.js";
 
 dotenv.config();
 
@@ -31,6 +36,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use("/api/webhooks/stripe", stripeWebhookRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,7 +47,10 @@ app.get("/", (req, res) => {
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api/users', userRoutes);
+app.use("/api/mobile", mobileRouter);
+app.use("/api/billing", billingRoutes);
 app.use("/api/connectors/woocommerce", woocommerceRoutes);
+app.use("/api/connectors/shopify", shopifyRoutes);
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -54,6 +63,7 @@ sequelize
     .then(() => {
         console.log("Database tables synced");
         startSyncWorker();
+        startEmailCampaignWorker();
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });

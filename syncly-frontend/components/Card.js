@@ -18,7 +18,7 @@ export default function Card({ children, style, contentStyle }) {
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     marginBottom: 14,
     elevation: 2,
     shadowColor: '#000',

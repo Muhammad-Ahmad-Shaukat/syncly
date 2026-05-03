@@ -1,42 +1,52 @@
 <?php
 
 namespace App\Http\Traits;
-use Log;
+
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use App\Repositories\Product\ProductRepositoryInterface;
-
-
+use App\Services\SynclyConnectorClient;
+use Log;
 
 trait ShopifyProductTrait
 {
-    protected $product;
-    public function getProductRepository(ProductRepositoryInterface $product)
-    {
-        $this->product = $product;
-    }
     public function getProductsFromShopify(User $user)
     {
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
+            return false;
+        }
         try {
             $productCount = $this->getProductsCountFromShopify($user);
             $cursor = 'null';
-            $loop = ceil($productCount / 250);
+            $loop = max(1, (int) ceil($productCount / 250));
             $hasErrors = false;
             for ($i = 1; $i <= $loop; $i++) {
                 [$products, $nextCursor] = $this->shopifyGraphqlProductQuery($user, $cursor);
-                if ($products && $nextCursor) {
-                    $cursor = '"' . $nextCursor . '"';
-                    foreach ($products as $product) {
-                        $product = $this->transformShopifyProductData($product);
-                        if (!$this->storeData($this->arrayToObject($product), $user)) {
+                if (empty($products)) {
+                    break;
+                }
+                $batch = [];
+                foreach ($products as $product) {
+                    $batch[] = $this->normalizeProductForBackend(
+                        $this->transformShopifyProductData($product)
+                    );
+                    if (count($batch) >= 50) {
+                        if (!$client->ingestBatch($user, 'product', $batch, 'initial')) {
                             $hasErrors = true;
                         }
-
+                        $batch = [];
                     }
                 }
+                if ($batch !== [] && !$client->ingestBatch($user, 'product', $batch, 'initial')) {
+                    $hasErrors = true;
+                }
+                if ($nextCursor) {
+                    $cursor = '"' . $nextCursor . '"';
+                } else {
+                    break;
+                }
             }
-            if($hasErrors) {
-                throw new \Exception("Some products could not be stored.");
+            if ($hasErrors) {
+                throw new \Exception("Some products could not be synced to Syncly backend.");
             }
         } catch (\Exception $e) {
             Log::error(json_encode($e->getMessage(), JSON_PRETTY_PRINT));
@@ -75,6 +85,7 @@ trait ShopifyProductTrait
                             vendor
                             productType
                             status
+                            updatedAt
                             variants(first: 250) {
                                 edges {
                                     node {
@@ -122,77 +133,53 @@ trait ShopifyProductTrait
     }
     public function storeData($product, User $user)
     {
-        DB::beginTransaction();
-        try {
-            $formatdData = $this->formatProductdata($product, $user);
-            $this->product->updateOrCreate($formatdData);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("Failed to store product: " . json_encode($product));
-            Log::error("Exception: " . json_encode($e->getMessage(), JSON_PRETTY_PRINT));
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
             return false;
         }
-        DB::commit();
-        return true;
+        $record = $this->normalizeProductForBackend($product);
+        return $client->ingestBatch($user, 'product', [$record], 'delta');
     }
-    public function formatProductdata($product, $user)
+    public function normalizeProductForBackend($product): array
     {
-        $formatdProduct = [
-            'user_id' => $user->id,
-            'shopify_product_id' => $product->id,
-            'title' => $product->title,
-            "handle" => $product->handle,
-            'body_html' => $product->body_html,
-            'tags' => $product->tags,
-            'vendor' => $product->vendor,
-            'product_type' => $product->product_type,
-            'status' => $product->status,
-            'variants' => $this->formatProductvarientData($product->variants),
-            'media' => $this->formatProductMedia($product->media)
+        $p = is_array($product) ? $product : json_decode(json_encode($product), true);
+        $variants = $p['variants'] ?? [];
+        $first = [];
+        if ($variants !== []) {
+            $v0 = $variants[0];
+            $first = is_array($v0) ? $v0 : json_decode(json_encode($v0), true);
+        }
+        $imageUrl = null;
+        if (!empty($p['image']['src'])) {
+            $imageUrl = $p['image']['src'];
+        } elseif (!empty($p['media'][0]['preview_image']['src'])) {
+            $imageUrl = $p['media'][0]['preview_image']['src'];
+        } elseif (!empty($p['media'][0]['image']['url'])) {
+            $imageUrl = $p['media'][0]['image']['url'];
+        }
+        return [
+            'id' => (string) ($p['id'] ?? ''),
+            'title' => $p['title'] ?? '',
+            'status' => $p['status'] ?? 'draft',
+            'price' => $first['price'] ?? null,
+            'inventory_quantity' => $first['inventory_quantity'] ?? null,
+            'sku' => $first['sku'] ?? null,
+            'image_url' => $imageUrl,
+            'image_alt_text' => $p['title'] ?? null,
+            'updated_at' => $p['updated_at'] ?? now()->toIso8601String(),
         ];
-        return $formatdProduct;
     }
-    public function formatProductvarientData($variants)
+    public function deleteProduct($productId, User $user)
     {
-        $productVarients = [];
-        foreach ($variants as $varient) {
-            $productVarients[] = [
-                "shopify_product_Varient_id" => $varient->id,
-                'shopify_inventory_item_id' => $varient->inventory_item_id,
-                'title' => $varient->title,
-                'sku' => $varient->sku,
-                'price' => $varient->price,
-                'inventory_quantity' => $varient->inventory_quantity,
-                'compare_at_price' => $varient->compare_at_price
-            ];
-        }
-        return $productVarients;
-    }
-    public function formatProductMedia($media)
-    {
-        $productMedia = [];
-        foreach ($media as $image) {
-            $productMedia[] = [
-                'shopify_product_media_id' => $image->id,
-                'position' => $image->position ?? null,
-                'src' => $image->preview_image->src
-            ];
-        }
-        return $productMedia;
-    }
-    public function deleteProduct($productId)
-    {
-        DB::beginTransaction();
-        try {
-            $product = $this->product->getByShopifyId($productId);
-            $this->product->delete($product->id);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error(json_encode($e->getMessage(), JSON_PRETTY_PRINT));
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
             return false;
         }
-        DB::commit();
-        return true;
+        $id = (string) $productId;
+        return $client->ingestDelta($user, 'product', 'delete', $id, [
+            'id' => $id,
+            'updated_at' => now()->toIso8601String(),
+        ]);
     }
     public function transformShopifyProductData($data): array
     {
@@ -238,6 +225,7 @@ trait ShopifyProductTrait
             'tags' => $this->arrayToString($node->tags),
             'variants' => $productVariants,
             'media' => $productMedia,
+            'updated_at' => $node->updatedAt ?? null,
         ];
         return $product;
     }

@@ -7,7 +7,7 @@ const SyncMapping = sequelize.define("SyncMapping", {
     entity_type: { type: DataTypes.ENUM("product", "order", "customer"), allowNull: false },
     external_id: { type: DataTypes.STRING, allowNull: false },
     internal_id: { type: DataTypes.INTEGER, allowNull: false },
-    source: { type: DataTypes.ENUM("backend", "woocommerce"), allowNull: false, defaultValue: "woocommerce" },
+    source: { type: DataTypes.ENUM("backend", "woocommerce", "shopify"), allowNull: false, defaultValue: "woocommerce" },
     source_updated_at: { type: DataTypes.DATE, allowNull: true },
     last_synced_at: { type: DataTypes.DATE, allowNull: true },
     version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }

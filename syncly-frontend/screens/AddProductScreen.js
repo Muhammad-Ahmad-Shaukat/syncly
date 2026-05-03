@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import Screen from '../components/Screen';
@@ -7,64 +7,112 @@ import Card from '../components/Card';
 import CustomButton from '../components/CustomButton';
 import CustomInput from '../components/CustomInput';
 import Header from '../components/Header';
-import { useAppState } from '../hooks/useAppState';
 import { useThemePalette } from '../hooks/useThemePalette';
+import { apiRequest } from '../services/api';
 
 export default function AddProductScreen() {
   const palette = useThemePalette();
-  const { addProduct } = useAppState();
+  const [stores, setStores] = useState([]);
+  const [storeId, setStoreId] = useState(null);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [stock, setStock] = useState('');
-  const [category, setCategory] = useState('');
+  const [sku, setSku] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  function handleSubmit() {
-    if (!name.trim() || !price.trim() || !description.trim() || !stock.trim()) {
-      setError('Please fill in the required fields.');
+  const loadStores = useCallback(async () => {
+    const { ok, data } = await apiRequest('/api/mobile/stores');
+    if (ok && data?.data?.length) {
+      setStores(data.data);
+      setStoreId((current) => current || data.data[0].id);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStores();
+  }, [loadStores]);
+
+  async function handleSubmit() {
+    if (!storeId) {
+      setError('Connect at least one store in the backend before creating products.');
+      return;
+    }
+    if (!name.trim() || !price.trim() || !stock.trim()) {
+      setError('Please fill in name, price, and stock.');
       return;
     }
 
     setError('');
     setSubmitting(true);
-
-    setTimeout(() => {
-      addProduct({
-        name: name.trim(),
+    const { ok, data } = await apiRequest('/api/mobile/products', {
+      method: 'POST',
+      body: {
+        store_id: storeId,
+        title: name.trim(),
         price: Number(price),
-        description: description.trim(),
-        stock: Number(stock),
-        category: category.trim() || 'General',
-        image: 'https://images.unsplash.com/photo-1517705008128-361805f42e86?auto=format&fit=crop&w=900&q=80',
-      });
-
-      setName('');
-      setPrice('');
-      setDescription('');
-      setStock('');
-      setCategory('');
-      setSubmitting(false);
-    }, 700);
+        inventory_quantity: parseInt(stock, 10),
+        description: description.trim() || undefined,
+        sku: sku.trim() || undefined,
+        status: 'draft',
+      },
+    });
+    setSubmitting(false);
+    if (!ok) {
+      setError(data?.error || 'Could not create product.');
+      return;
+    }
+    setName('');
+    setPrice('');
+    setDescription('');
+    setStock('');
+    setSku('');
   }
 
   return (
     <Screen scroll keyboardAvoiding>
       <View style={styles.container}>
-        <Header title="Add Product" subtitle="Capture new catalog items with a clean form." />
+        <Header title="Add Product" subtitle="Creates a canonical row and queues a connector dispatch job." />
 
         <Card>
+          <Text style={[styles.label, { color: palette.text }]}>Store</Text>
+          {stores.length === 0 ? (
+            <Text style={{ color: palette.textMuted, marginBottom: 12 }}>No stores found for your account.</Text>
+          ) : (
+            <View style={styles.storeRow}>
+              {stores.map((s) => {
+                const active = storeId === s.id;
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => setStoreId(s.id)}
+                    style={[
+                      styles.storeChip,
+                      {
+                        borderColor: active ? palette.primary : palette.border,
+                        backgroundColor: active ? palette.primarySoft : palette.surfaceSoft,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: palette.text, fontWeight: '600' }}>{s.store_name}</Text>
+                    <Text style={{ color: palette.textMuted, fontSize: 12 }}>{s.platform}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
           <CustomInput label="Product name" value={name} onChangeText={setName} placeholder="Minimal desk mat" />
+          <CustomInput label="SKU (optional)" value={sku} onChangeText={setSku} placeholder="SKU-1001" />
           <CustomInput label="Price" value={price} onChangeText={setPrice} keyboardType="numeric" placeholder="49" />
-          <CustomInput label="Description" value={description} onChangeText={setDescription} placeholder="Short product description" multiline style={styles.multiline} />
+          <CustomInput label="Description" value={description} onChangeText={setDescription} placeholder="Short description" multiline style={styles.multiline} />
           <CustomInput label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" placeholder="12" />
-          <CustomInput label="Category" value={category} onChangeText={setCategory} placeholder="Office, Home, Lifestyle" />
 
           <View style={[styles.uploadBox, { borderColor: palette.border, backgroundColor: palette.surfaceSoft }]}>
             <MaterialCommunityIcons name="image-plus" size={24} color={palette.primary} />
-            <Text style={[styles.uploadTitle, { color: palette.text }]}>Image upload UI only</Text>
-            <Text style={[styles.uploadText, { color: palette.textMuted }]}>Connect a picker later if you need real media uploads.</Text>
+            <Text style={[styles.uploadTitle, { color: palette.text }]}>Images</Text>
+            <Text style={[styles.uploadText, { color: palette.textMuted }]}>Upload flows can pipe through the backend storage layer later.</Text>
           </View>
 
           {error ? <Text style={[styles.error, { color: palette.danger }]}>{error}</Text> : null}
@@ -80,7 +128,11 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 8,
+    paddingBottom: 32,
   },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  storeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+  storeChip: { borderWidth: 1, borderRadius: 12, padding: 12, minWidth: 120 },
   multiline: {
     minHeight: 96,
     textAlignVertical: 'top',
@@ -97,7 +149,7 @@ const styles = StyleSheet.create({
   },
   uploadTitle: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   uploadText: {
     fontSize: 13,

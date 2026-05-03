@@ -2,42 +2,54 @@
 
 namespace App\Http\Traits;
 
-use Log;
 use App\Models\User;
+use App\Services\SynclyConnectorClient;
 use App\Http\Traits\ResponseTrait;
-use Illuminate\Support\Facades\DB;
-use App\Repositories\Order\OrderRepositoryInterface;
+use Log;
 
 trait ShopifyOrderTrait
 {
     use ResponseTrait;
-    protected $order;
-    public function getOrderRepository(OrderRepositoryInterface $order)
-    {
-        $this->order = $order;
-    }
+
     public function getOrdersFromShopify(User $user)
     {
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
+            return false;
+        }
         try {
             $orderCount = $this->getOrdersCountFromShopify($user);
             $cursor = 'null';
-            $loop = ceil($orderCount / 250);
+            $loop = max(1, (int) ceil($orderCount / 250));
             $hasErrors = false;
             for ($i = 1; $i <= $loop; $i++) {
                 [$orders, $nextCursor] = $this->shopifyGraphqlOrderQuery($user, $cursor);
-                if ($orders && $nextCursor) {
-                    $cursor = '"' . $nextCursor . '"';
-                    foreach ($orders as $order) {
-                        $order = $this->transformShopifyOrderData($order);
-                        Log::info("Order Data: " . json_encode($order, JSON_PRETTY_PRINT));
-                        if (!$this->storeData($this->arrayToObject($order), $user)) {
+                if (empty($orders)) {
+                    break;
+                }
+                $batch = [];
+                foreach ($orders as $order) {
+                    $batch[] = $this->normalizeOrderForBackend(
+                        $this->transformShopifyOrderData($order)
+                    );
+                    if (count($batch) >= 50) {
+                        if (!$client->ingestBatch($user, 'order', $batch, 'initial')) {
                             $hasErrors = true;
                         }
+                        $batch = [];
                     }
+                }
+                if ($batch !== [] && !$client->ingestBatch($user, 'order', $batch, 'initial')) {
+                    $hasErrors = true;
+                }
+                if ($nextCursor) {
+                    $cursor = '"' . $nextCursor . '"';
+                } else {
+                    break;
                 }
             }
             if ($hasErrors) {
-                throw new \Exception("Some Orders could not be stored.");
+                throw new \Exception("Some orders could not be synced to Syncly backend.");
             }
         } catch (\Exception $e) {
             Log::error(json_encode($e->getMessage(), JSON_PRETTY_PRINT));
@@ -75,6 +87,7 @@ trait ShopifyOrderTrait
                             displayFinancialStatus
                             displayFulfillmentStatus
                             name
+                            updatedAt
                             note
                             phone
                             subtotalPriceSet{
@@ -194,136 +207,41 @@ trait ShopifyOrderTrait
     }
     public function storeData($order, User $user, $update = false)
     {
-        DB::beginTransaction();
-        try {
-            $formatdData = $this->formatOrderData($order, $user);
-            if ($update) {
-                $order = $this->order->getByShopifyId($order->id);
-                if (!$order) {
-                    Log::info("Order May be deleted: " . json_encode($order, JSON_PRETTY_PRINT));
-                    return true;
-                }
-            }
-            $this->order->updateOrCreate($formatdData);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error("Failed to store Order: " . json_encode($order));
-            Log::error("Exception: " . json_encode($e->getMessage(), JSON_PRETTY_PRINT));
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
             return false;
         }
-        DB::commit();
-        return true;
+        $record = $this->normalizeOrderForBackend($order);
+        return $client->ingestBatch($user, 'order', [$record], 'delta');
     }
-    public function formatOrderData($order, $user)
+    public function deleteOrder($orderId, User $user)
     {
-        $formatdOrder = [
-            "shopify_order_id" => $order->id,
-            "user_id" => $user->id,
-            "contact_email" => $order->contact_email,
-            "email" => $order->email,
-            "financial_status" => strtoupper($order->financial_status) ?? 'UNPAID',
-            "fulfillment_status" => $order->fulfillment_status ? strtoupper($order->fulfillment_status) : 'UNFULFILLED',
-            "name" => $order->name,
-            "note" => $order->note,
-            "phone" => $order->phone,
-            "subtotal_price" => $order->subtotal_price,
-            "tags" => $order->tags,
-            "total_discounts" => $order->total_discounts,
-            "total_line_items_price" => $order->total_line_items_price,
-            "total_outstanding" => $order->total_outstanding,
-            "total_price" => $order->total_price,
-            "total_shipping_price" => $order->total_shipping_price_set->shop_money->amount ?? 0,
-            "total_tax" => $order->total_tax,
-            "total_tip_received" => $order->total_tip_received,
-            "total_weight" => $order->total_weight,
-            "customer" => $this->formatOrderCustomerData($order->customer),
-            "line_items" => $this->formatOrderLineItemsData($order->line_items),
-            "shipping_address" => $this->formatOrderShippingAddressData($order->shipping_address),
-            "fulfillments" => $this->formatOrderFulfillmentsData($order->fulfillments)
-        ];
-        return $formatdOrder;
-    }
-    public function formatOrderCustomerData($customer)
-    {
-        if (!$customer) {
-            return null;
-        }
-        $orderCustomer = [
-            "shopify_customer_id" => $customer->id,
-            "email" => $customer->email,
-            "first_name" => $customer->first_name,
-            "last_name" => $customer->last_name,
-            "phone" => $customer->phone,
-        ];
-        return $orderCustomer;
-    }
-    public function formatOrderLineItemsData($lineItems)
-    {
-        $orderLineItems = [];
-        foreach ($lineItems as $item) {
-            $orderLineItems[] = [
-                "shopify_order_lineitem_id" => $item->id,
-                "price" => $item->price,
-                "quantity" => $item->quantity,
-                "sku" => $item->sku,
-                "title" => $item->title,
-                "total_discount" => $item->total_discount,
-                "shopify_product_variant_id" => $item->variant_id,
-            ];
-        }
-        return $orderLineItems;
-    }
-    public function formatOrderShippingAddressData($shippingAddress)
-    {
-        if (!$shippingAddress) {
-            return null;
-        }
-        $orderShippingAddress = [
-            "first_name" => $shippingAddress->first_name,
-            "last_name" => $shippingAddress->last_name,
-            "address1" => $shippingAddress->address1,
-            "phone" => $shippingAddress->phone,
-            "city" => $shippingAddress->city,
-            "zip" => $shippingAddress->zip,
-            "province" => $shippingAddress->province,
-            "country" => $shippingAddress->country,
-            "company" => $shippingAddress->company,
-            "country_code" => $shippingAddress->country_code,
-            "province_code" => $shippingAddress->province_code
-        ];
-        return $orderShippingAddress;
-    }
-    public function formatOrderFulfillmentsData($fulfillment)
-    {
-        $orderFulfillments = [];
-        foreach ($fulfillment as $fulfill) {
-            $orderFulfillments[] = [
-                "shopify_order_fulfillment_id" => $fulfill->id,
-                "shopify_order_fulfillment_location_id" => $fulfill->location_id,
-                "name" => $fulfill->name,
-                "service" => strtoupper($fulfill->service),
-                "shipment_status" => strtoupper($fulfill->shipment_status),
-                "status" => strtoupper($fulfill->status),
-                "tracking_company" => $fulfill->tracking_company,
-                "tracking_number" => $fulfill->tracking_number,
-                "tracking_url" => $fulfill->tracking_url,
-            ];
-        }
-        return $orderFulfillments;
-    }
-    public function deleteOrder($orderId)
-    {
-        DB::beginTransaction();
-        try {
-            $order = $this->order->getByShopifyId($orderId);
-            $this->order->delete($order->id);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error(json_encode($e->getMessage(), JSON_PRETTY_PRINT));
+        $client = app(SynclyConnectorClient::class);
+        if (!$client->ensureConnector($user)) {
             return false;
         }
-        DB::commit();
-        return true;
+        $id = (string) $orderId;
+        return $client->ingestDelta($user, 'order', 'delete', $id, [
+            'id' => $id,
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    public function normalizeOrderForBackend($order): array
+    {
+        $o = is_array($order) ? $order : json_decode(json_encode($order), true);
+        $status = $o['financial_status'] ?? $o['status'] ?? 'pending';
+        if (is_string($status)) {
+            $status = strtolower(str_replace([' ', '/'], ['_', '_'], $status));
+        }
+        return [
+            'id' => (string) ($o['id'] ?? ''),
+            'order_number' => (string) ($o['name'] ?? $o['order_number'] ?? ''),
+            'status' => (string) $status,
+            'currency' => $o['currency'] ?? $o['presentment_currency'] ?? null,
+            'total_amount' => $o['total_price'] ?? null,
+            'updated_at' => $o['updated_at'] ?? now()->toIso8601String(),
+        ];
     }
     public function transformShopifyOrderData($data): array
     {
@@ -387,6 +305,7 @@ trait ShopifyOrderTrait
         }
         $order = [
             'id' => $this->extractId($node->id),
+            'updated_at' => $node->updatedAt ?? null,
             "contact_email" => $node->email,
             "email" => $node->email,
             "financial_status" => $node->displayFinancialStatus,

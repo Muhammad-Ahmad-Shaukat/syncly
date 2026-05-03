@@ -94,6 +94,14 @@ export async function logIncomingEvent({
 }
 
 export async function upsertCanonicalRecord({ storeId, entityType, data, origin = "woocommerce", sourceUpdatedAt = null }) {
+    const store = await Store.findByPk(storeId);
+    if (!store) {
+        throw new Error("Store not found");
+    }
+    const platform = store.platform === "shopify" ? "shopify" : "woocommerce";
+    const allowedSources = ["backend", "woocommerce", "shopify"];
+    const sourceValue = allowedSources.includes(origin) ? origin : "woocommerce";
+
     const Model = modelForEntity(entityType);
     const externalField = externalIdField(entityType);
     const externalId = String(data?.external_id ?? data?.id ?? "");
@@ -101,9 +109,9 @@ export async function upsertCanonicalRecord({ storeId, entityType, data, origin 
 
     const modelDefaults = {
         store_id: storeId,
-        platform: "woocommerce",
+        platform,
         [externalField]: externalId,
-        source: origin,
+        source: sourceValue,
         source_updated_at: sourceUpdatedAt ? new Date(sourceUpdatedAt) : new Date(),
         last_synced_at: new Date(),
         sync_hash: hashPayload(data),
@@ -153,7 +161,7 @@ export async function upsertCanonicalRecord({ storeId, entityType, data, origin 
         entity_type: entityType,
         external_id: externalId,
         internal_id: record.id,
-        source: origin,
+        source: sourceValue,
         source_updated_at: sourceUpdatedAt ? new Date(sourceUpdatedAt) : new Date(),
         last_synced_at: new Date(),
         version: record.version || 1

@@ -10,7 +10,7 @@ const Customer = sequelize.define("Customer", {
     first_name: { type: DataTypes.STRING, allowNull: true },
     last_name: { type: DataTypes.STRING, allowNull: true },
     status: { type: DataTypes.STRING, allowNull: true },
-    source: { type: DataTypes.ENUM("backend", "woocommerce"), allowNull: false, defaultValue: "woocommerce" },
+    source: { type: DataTypes.ENUM("backend", "woocommerce", "shopify"), allowNull: false, defaultValue: "woocommerce" },
     source_updated_at: { type: DataTypes.DATE, allowNull: true },
     last_synced_at: { type: DataTypes.DATE, allowNull: true },
     version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },

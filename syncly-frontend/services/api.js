@@ -1,100 +1,124 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { getApiBase } from '../config/api';
 
-const SENSITIVE_KEYS = new Set(['password', 'oldPassword', 'newPassword', 'access_token', 'access_token_secret']);
+const ACCESS_KEY = 'inventsync_access_token';
+const REFRESH_KEY = 'inventsync_refresh_token';
 
-function redactForLog(value) {
-  if (value === null || value === undefined || typeof value !== 'object') {
-    return value;
+let refreshInFlight = null;
+
+export async function setAuthTokens({ accessToken, refreshToken }) {
+  if (accessToken != null) {
+    await AsyncStorage.setItem(ACCESS_KEY, accessToken);
   }
-  if (Array.isArray(value)) {
-    return value.map((item) => redactForLog(item));
+  if (refreshToken != null) {
+    await AsyncStorage.setItem(REFRESH_KEY, refreshToken);
   }
-  const out = {};
-  for (const [k, v] of Object.entries(value)) {
-    if (SENSITIVE_KEYS.has(k)) {
-      out[k] = '***';
-    } else if (v && typeof v === 'object') {
-      out[k] = redactForLog(v);
-    } else {
-      out[k] = v;
-    }
-  }
-  return out;
 }
 
+export async function clearAuthTokens() {
+  await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY]);
+}
 
+export async function getAccessToken() {
+  return AsyncStorage.getItem(ACCESS_KEY);
+}
+
+async function getRefreshToken() {
+  return AsyncStorage.getItem(REFRESH_KEY);
+}
+
+async function runRefresh() {
+  const rt = await getRefreshToken();
+  if (!rt) {
+    return null;
+  }
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/mobile/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: rt }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    await clearAuthTokens();
+    return null;
+  }
+  await setAuthTokens({
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+  });
+  return data.accessToken;
+}
+
+async function refreshAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = runRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
 
 /**
- * @param {string} path - e.g. "/api/users/users" (leading slash optional)
- * @param {{ method?: string, body?: object, headers?: Record<string, string> }} options
- * @returns {Promise<{ ok: boolean, status: number, data: object }>}
+ * @param {string} path - e.g. "/api/mobile/me"
+ * @param {{ method?: string, body?: object, headers?: Record<string, string>, skipAuth?: boolean, _retry?: boolean }} options
  */
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function success(data) {
-  return { ok: true, status: 200, data };
-}
-
-function failure(message) {
-  return { ok: false, status: 400, data: { error: message } };
-}
-
 export async function apiRequest(path, options = {}) {
-  await delay(250);
+  const base = getApiBase();
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const method = options.method || 'GET';
+  const headers = { ...options.headers };
+  if (options.body !== undefined && !options.headers?.['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (!options.skipAuth) {
+    const token = await getAccessToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  const fetchOpts = {
+    method,
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  };
+  let res = await fetch(url, fetchOpts);
+  let data = await res.json().catch(() => ({}));
 
-  if (!path) {
-    return failure('Missing request path.');
+  if (res.status === 401 && !options.skipAuth && !options._retry) {
+    const next = await refreshAccessToken();
+    if (next) {
+      return apiRequest(path, { ...options, _retry: true });
+    }
   }
 
-  return success({
-    path,
-    method: options.method || 'GET',
-    placeholder: true,
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function mobileLogin(email, password) {
+  return apiRequest('/api/mobile/login', {
+    method: 'POST',
+    body: { email, password },
+    skipAuth: true,
   });
 }
 
-export const authApi = {
-  login: async (email, password) => {
-    await delay(450);
+export async function mobileGoogleExchange(idToken) {
+  return apiRequest('/api/mobile/auth/google', {
+    method: 'POST',
+    body: { id_token: idToken },
+    skipAuth: true,
+  });
+}
 
-    if (!String(email || '').trim() || !String(password || '').trim()) {
-      return failure('Email and password are required.');
-    }
+export async function mobileLogoutRequest() {
+  return apiRequest('/api/mobile/logout', { method: 'POST' });
+}
 
-    return success({
-      username: String(email).trim().toLowerCase().split('@')[0] || 'admin',
-      email: String(email).trim().toLowerCase(),
-      token: 'mock-token',
-    });
-  },
-  signup: async (payload) => {
-    await delay(450);
-
-    if (!payload || !payload.email || !payload.password || !payload.username) {
-      return failure('Username, email, and password are required.');
-    }
-
-    return success({
-      created: true,
-      user: {
-        username: payload.username,
-        email: String(payload.email).trim().toLowerCase(),
-      },
-    });
-  },
-};
-export const authApi = {
-  login: (email, password) =>
-    apiRequest('/api/users/login', {
-      method: 'POST',
-      body: { email, password },
-    }),
-  signup: (payload) =>
-    apiRequest('/api/users/users', {
-      method: 'POST',
-      body: payload,
-    }),
-};
+export async function registerPushToken(expoPushToken) {
+  return apiRequest('/api/mobile/me/push-token', {
+    method: 'PUT',
+    body: { expo_push_token: expoPushToken },
+  });
+}

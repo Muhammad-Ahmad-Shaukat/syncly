@@ -6,8 +6,16 @@ const SyncEventLog = sequelize.define("SyncEventLog", {
     store_id: { type: DataTypes.INTEGER, allowNull: false },
     entity_type: { type: DataTypes.ENUM("product", "order", "customer"), allowNull: false },
     operation: { type: DataTypes.ENUM("create", "update", "delete", "bulk"), allowNull: false },
-    direction: { type: DataTypes.ENUM("woo_to_backend", "backend_to_woo"), allowNull: false },
-    origin: { type: DataTypes.ENUM("backend", "woocommerce"), allowNull: false },
+    direction: {
+        type: DataTypes.ENUM(
+            "woo_to_backend",
+            "backend_to_woo",
+            "shopify_to_backend",
+            "backend_to_shopify"
+        ),
+        allowNull: false
+    },
+    origin: { type: DataTypes.ENUM("backend", "woocommerce", "shopify"), allowNull: false },
     external_id: { type: DataTypes.STRING, allowNull: true },
     idempotency_key: { type: DataTypes.STRING, allowNull: false },
     payload: { type: DataTypes.JSON, allowNull: false },

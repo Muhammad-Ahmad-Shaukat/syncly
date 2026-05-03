@@ -1,90 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import Screen from '../components/Screen';
 import Card from '../components/Card';
 import Header from '../components/Header';
 import Badge from '../components/Badge';
-import SkeletonLoader, { SkeletonCard } from '../components/SkeletonLoader';
-import { useAppState } from '../hooks/useAppState';
 import { useThemePalette } from '../hooks/useThemePalette';
+import { apiRequest } from '../services/api';
 
-function currency(value) {
+function currency(value, cur) {
+  if (value == null) return '—';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatShortDate(value) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(value));
+    currency: cur || 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(value));
 }
 
 export default function OrdersScreen() {
   const palette = useThemePalette();
-  const { orders } = useAppState();
+  const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setInitialLoading(false), 600);
-    return () => clearTimeout(timer);
+  const load = useCallback(async () => {
+    const { ok, data } = await apiRequest('/api/mobile/orders');
+    if (ok && data?.data) setOrders(data.data);
+    setLoading(false);
   }, []);
 
-  function handleRefresh() {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function onRefresh() {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 850);
+    await load();
+    setRefreshing(false);
   }
 
   return (
     <Screen>
       <View style={styles.container}>
-        <Header title="Orders" subtitle="Recent order activity with status tracking." />
-
-        {initialLoading ? <SkeletonLoader height={42} /> : null}
+        <Header title="Orders" subtitle="Latest orders across all connected stores." />
 
         <FlatList
           data={orders}
-          keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={palette.primary} />}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
+          contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Text style={[styles.emptyTitle, { color: palette.text }]}>No orders yet</Text>
-              <Text style={[styles.emptyText, { color: palette.textMuted }]}>Orders will appear here after they are created.</Text>
-            </View>
+            loading ? null : (
+              <Text style={{ color: palette.textMuted, textAlign: 'center', marginTop: 24 }}>No orders yet.</Text>
+            )
           }
-          renderItem={({ item }) => {
-            const tone = item.status === 'Completed' ? 'success' : item.status === 'Pending' ? 'warning' : 'danger';
-
-            return (
-              <Card style={styles.orderCard}>
-                <View style={styles.orderTopRow}>
-                  <View style={styles.orderCopy}>
-                    <Text style={[styles.orderId, { color: palette.text }]}>{item.id}</Text>
-                    <Text style={[styles.customerName, { color: palette.textMuted }]}>{item.customerName}</Text>
-                  </View>
-                  <Badge label={item.status} tone={tone} />
+          renderItem={({ item }) => (
+            <Card style={styles.card}>
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.title, { color: palette.text }]}>{item.order_number || `Order #${item.id}`}</Text>
+                  <Text style={[styles.sub, { color: palette.textMuted }]}>
+                    {item.Store?.store_name} · {item.platform}
+                  </Text>
                 </View>
-
-                <Text style={[styles.products, { color: palette.textMuted }]} numberOfLines={2}>
-                  {item.productNames.join(' • ')}
-                </Text>
-
-                <View style={styles.orderBottomRow}>
-                  <Text style={[styles.meta, { color: palette.textMuted }]}>{formatShortDate(item.createdAt)}</Text>
-                  <Text style={[styles.meta, { color: palette.textMuted }]}>{item.itemCount} items</Text>
-                  <Text style={[styles.price, { color: palette.text }]}>{currency(item.totalPrice)}</Text>
-                </View>
-              </Card>
-            );
-          }}
-          ListHeaderComponent={refreshing ? <SkeletonCard /> : null}
+                <Badge label={item.status || 'unknown'} tone="neutral" />
+              </View>
+              <Text style={[styles.amount, { color: palette.text }]}>{currency(item.total_amount, item.currency)}</Text>
+            </Card>
+          )}
         />
       </View>
     </Screen>
@@ -92,67 +75,11 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
-  orderCard: {
-    paddingBottom: 2,
-  },
-  orderTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 10,
-  },
-  orderCopy: {
-    flex: 1,
-  },
-  orderId: {
-    fontSize: 17,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  customerName: {
-    fontSize: 14,
-  },
-  products: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  orderBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  meta: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  price: {
-    fontSize: 16,
-    fontWeight: '900',
-    marginLeft: 'auto',
-  },
-  emptyWrap: {
-    paddingVertical: 44,
-    alignItems: 'center',
-    gap: 6,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
+  container: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  list: { paddingBottom: 40, gap: 10 },
+  card: { gap: 8 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  title: { fontSize: 16, fontWeight: '600' },
+  sub: { fontSize: 13, marginTop: 4 },
+  amount: { fontSize: 18, fontWeight: '700' },
 });

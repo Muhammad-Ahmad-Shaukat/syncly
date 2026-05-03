@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'syncly' => [
+        'url' => env('SYNCLY_API_URL', 'http://localhost:3000'),
+        'connector_email' => env('SYNCLY_CONNECTOR_EMAIL'),
+        'connector_password' => env('SYNCLY_CONNECTOR_PASSWORD'),
+    ],
+
 ];
+

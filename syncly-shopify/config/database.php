@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -53,7 +53,8 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
+            // Share one MySQL database with syncly-backend without colliding on table names (e.g. users).
+            'prefix' => env('DB_PREFIX', 'shopify_app_'),
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,

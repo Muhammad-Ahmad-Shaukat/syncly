@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import * as Google from 'expo-auth-session/providers/google';
 
 import Screen from '../components/Screen';
 import Card from '../components/Card';
@@ -8,14 +9,50 @@ import CustomInput from '../components/CustomInput';
 import Header from '../components/Header';
 import { useAppState } from '../hooks/useAppState';
 import { useThemePalette } from '../hooks/useThemePalette';
+import { mobileGoogleExchange } from '../services/api';
+
+const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 
 export default function LoginScreen() {
   const palette = useThemePalette();
-  const { login } = useAppState();
-  const [email, setEmail] = useState('admin@syncly.com');
-  const [password, setPassword] = useState('password123');
+  const { login, completeSession } = useAppState();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [, googleResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    clientId: googleWebClientId || 'missing.apps.googleusercontent.com',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (googleResponse?.type !== 'success') return;
+      const idToken =
+        googleResponse.params?.id_token || googleResponse.authentication?.idToken;
+      if (!idToken || cancelled) return;
+      setLoading(true);
+      setError('');
+      const { ok, data } = await mobileGoogleExchange(idToken);
+      if (cancelled) return;
+      setLoading(false);
+      if (!ok) {
+        setError(data?.error || 'Google sign-in failed.');
+        return;
+      }
+      await completeSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [googleResponse, completeSession]);
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
@@ -40,10 +77,10 @@ export default function LoginScreen() {
       <View style={[styles.root, { backgroundColor: palette.background }]}>
         <View style={styles.hero}>
           <View style={[styles.logoMark, { backgroundColor: palette.primarySoft }]}>
-            <Text style={[styles.logoLetter, { color: palette.primary }]}>S</Text>
+            <Text style={[styles.logoLetter, { color: palette.primary }]}>I</Text>
           </View>
-          <Text style={[styles.brand, { color: palette.text }]}>Syncly Admin</Text>
-          <Text style={[styles.copy, { color: palette.textMuted }]}>Manage Shopify and WooCommerce products and orders from one clean dashboard.</Text>
+          <Text style={[styles.brand, { color: palette.text }]}>InventSync</Text>
+          <Text style={[styles.copy, { color: palette.textMuted }]}>Manage Shopify and WooCommerce inventory, sync, and orders from one mobile workspace.</Text>
         </View>
 
         <Card>
@@ -54,6 +91,16 @@ export default function LoginScreen() {
           {error ? <Text style={[styles.error, { color: palette.danger }]}>{error}</Text> : null}
 
           <CustomButton title="Login" onPress={handleLogin} loading={loading} style={styles.button} />
+
+          {googleWebClientId ? (
+            <CustomButton
+              title="Continue with Google"
+              tone="secondary"
+              onPress={() => promptGoogleAsync()}
+              loading={loading}
+              style={styles.button}
+            />
+          ) : null}
         </Card>
       </View>
     </Screen>

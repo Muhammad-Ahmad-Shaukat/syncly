@@ -1,73 +1,101 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { mockOrders, mockProducts } from '../constants/mockData';
-import { loginMock } from '../services/mockApi';
+import {
+  apiRequest,
+  clearAuthTokens,
+  getAccessToken,
+  mobileLogin,
+  mobileLogoutRequest,
+  setAuthTokens,
+} from '../services/api';
 
 const AppContext = createContext(null);
 
 export function AppStateProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [products, setProducts] = useState(mockProducts);
-  const [orders, setOrders] = useState(mockOrders);
   const [settings, setSettings] = useState({
     isDarkMode: false,
     shopifyApiUrl: 'https://admin.shopify.com/store/demo-store',
     wooCommerceApiUrl: 'https://demo.woocommerce.com/wp-json',
   });
+  const [bootstrapDone, setBootstrapDone] = useState(false);
 
-  async function login(email, password) {
-    const result = await loginMock(email, password);
-    setUser(result.user);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) {
+          return;
+        }
+        const { ok, data } = await apiRequest('/api/mobile/me');
+        if (!cancelled && ok && data?.user) {
+          setUser(data.user);
+          setIsAuthenticated(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setBootstrapDone(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const completeSession = useCallback(async (session) => {
+    await setAuthTokens({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    });
+    setUser(session.user);
     setIsAuthenticated(true);
-  }
+  }, []);
 
-  function logout() {
+  const login = useCallback(
+    async (email, password) => {
+      const { ok, data } = await mobileLogin(email, password);
+      if (!ok) {
+        throw new Error(data?.error || 'Unable to sign in.');
+      }
+      await completeSession({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+    },
+    [completeSession]
+  );
+
+  async function logout() {
+    try {
+      await mobileLogoutRequest();
+    } catch {
+      /* offline */
+    }
+    await clearAuthTokens();
     setIsAuthenticated(false);
     setUser(null);
-  }
-
-  function addProduct(product) {
-    const nextProduct = {
-      ...product,
-      id: `p-${Date.now()}`,
-    };
-    setProducts((current) => [nextProduct, ...current]);
-  }
-
-  function addOrder(order) {
-    const nextOrder = {
-      ...order,
-      id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-      createdAt: new Date().toISOString(),
-    };
-    setOrders((current) => [nextOrder, ...current]);
   }
 
   function updateSettings(nextSettings) {
     setSettings((current) => ({ ...current, ...nextSettings }));
   }
 
-  function refreshMockData() {
-    setProducts([...mockProducts]);
-    setOrders([...mockOrders]);
-  }
-
   const value = useMemo(
     () => ({
       isAuthenticated,
       user,
-      products,
-      orders,
       settings,
+      bootstrapDone,
       login,
+      completeSession,
       logout,
-      addProduct,
-      addOrder,
       updateSettings,
-      refreshMockData,
     }),
-    [isAuthenticated, user, products, orders, settings]
+    [isAuthenticated, user, settings, bootstrapDone, completeSession, login]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

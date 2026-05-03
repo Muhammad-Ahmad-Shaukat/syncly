@@ -63,6 +63,28 @@ const User = sequelize.define('User', {
         type: DataTypes.DATE,
         allowNull: true
     },
+    google_sub: {
+        type: DataTypes.STRING(128),
+        allowNull: true,
+        unique: true
+    },
+    stripe_customer_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+    },
+    stripe_subscription_id: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+    },
+    subscription_status: {
+        type: DataTypes.STRING(32),
+        allowNull: false,
+        defaultValue: 'none'
+    },
+    expo_push_token: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
     created_at: {
         type: DataTypes.DATE,
         allowNull: false,

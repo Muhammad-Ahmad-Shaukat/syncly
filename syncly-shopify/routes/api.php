@@ -1,8 +1,7 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\SynclyCommandController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+Route::post('/syncly/commands', [SynclyCommandController::class, 'handle'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);

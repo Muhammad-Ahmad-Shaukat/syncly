@@ -6,6 +6,7 @@ import { PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
 
 import { AppStateProvider, useAppState } from '../hooks/useAppState';
+import { useExpoPushRegistration } from '../hooks/useExpoPushRegistration';
 import { darkPalette, lightPalette } from '../constants/theme';
 import AuthStack from './AuthStack';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -15,6 +16,11 @@ import AddProductScreen from '../screens/AddProductScreen';
 import AddOrderScreen from '../screens/AddOrderScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import LogoutScreen from '../screens/LogoutScreen';
+import SyncScreen from '../screens/SyncScreen';
+import CampaignsScreen from '../screens/CampaignsScreen';
+import InboxScreen from '../screens/InboxScreen';
+import PricingScreen from '../screens/PricingScreen';
+import ProductDetailScreen from '../screens/ProductDetailScreen';
 import { useThemePalette } from '../hooks/useThemePalette';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -35,8 +41,12 @@ function MenuOverlay({ visible, onClose, user }) {
 
   const items = [
     { label: 'Dashboard', icon: 'view-dashboard-outline', route: 'Dashboard' },
-    { label: 'Products', icon: 'package-variant-closed', route: 'Products' },
+    { label: 'Inventory', icon: 'package-variant-closed', route: 'Products' },
+    { label: 'Sync', icon: 'sync', route: 'Sync' },
     { label: 'Orders', icon: 'receipt-text-outline', route: 'Orders' },
+    { label: 'Campaigns', icon: 'email-outline', route: 'Campaigns' },
+    { label: 'Inbox', icon: 'inbox-outline', route: 'Inbox' },
+    { label: 'Pricing', icon: 'credit-card-outline', route: 'Pricing' },
     { label: 'Add Product', icon: 'plus-box-outline', route: 'Add Product' },
     { label: 'Add Order', icon: 'cart-plus', route: 'Add Order' },
     { label: 'Settings', icon: 'cog-outline', route: 'Settings' },
@@ -52,8 +62,8 @@ function MenuOverlay({ visible, onClose, user }) {
               <MaterialCommunityIcons name="shopping-outline" size={22} color={palette.primary} />
             </View>
             <View style={styles.overlayCopy}>
-              <Text style={[styles.brandTitle, { color: palette.text }]}>Syncly Admin</Text>
-              <Text style={[styles.brandSubtitle, { color: palette.textMuted }]}>Shopify + WooCommerce</Text>
+              <Text style={[styles.brandTitle, { color: palette.text }]}>InventSync</Text>
+              <Text style={[styles.brandSubtitle, { color: palette.textMuted }]}>Shopify + WooCommerce inventory</Text>
             </View>
           </View>
 
@@ -92,6 +102,7 @@ function MenuOverlay({ visible, onClose, user }) {
 
 function AppNavigator() {
   const { isAuthenticated, settings, user } = useAppState();
+  useExpoPushRegistration(isAuthenticated);
   const palette = settings.isDarkMode ? darkPalette : lightPalette;
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -144,14 +155,19 @@ function AppNavigator() {
           <Stack.Navigator
             screenOptions={{
               headerStyle: { backgroundColor: palette.surface },
-              headerTitleStyle: { color: palette.text, fontWeight: '800' },
+              headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
               headerTintColor: palette.text,
               contentStyle: { backgroundColor: palette.background },
             }}
           >
             <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Dashboard', headerLeft: () => <Pressable onPress={() => setMenuVisible(true)} style={styles.headerMenuButton}><MaterialCommunityIcons name="menu" size={24} color={palette.text} /></Pressable> }} />
-            <Stack.Screen name="Products" component={ProductsScreen} options={{ title: 'Products' }} />
+            <Stack.Screen name="Products" component={ProductsScreen} options={{ title: 'Inventory' }} />
+            <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product' }} />
+            <Stack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
             <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
+            <Stack.Screen name="Campaigns" component={CampaignsScreen} options={{ title: 'Campaigns' }} />
+            <Stack.Screen name="Inbox" component={InboxScreen} options={{ title: 'Inbox' }} />
+            <Stack.Screen name="Pricing" component={PricingScreen} options={{ title: 'Pricing' }} />
             <Stack.Screen name="Add Product" component={AddProductScreen} options={{ title: 'Add Product' }} />
             <Stack.Screen name="Add Order" component={AddOrderScreen} options={{ title: 'Add Order' }} />
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />

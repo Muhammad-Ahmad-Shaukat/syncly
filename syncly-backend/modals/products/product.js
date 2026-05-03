@@ -132,7 +132,7 @@ const Product = sequelize.define('Product', {
         allowNull: true
     },
     source: {
-        type: DataTypes.ENUM('backend', 'woocommerce'),
+        type: DataTypes.ENUM('backend', 'woocommerce', 'shopify'),
         allowNull: false,
         defaultValue: 'woocommerce'
     },

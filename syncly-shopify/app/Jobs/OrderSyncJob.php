@@ -7,8 +7,6 @@ use App\Http\Traits\ResponseTrait;
 use App\Http\Traits\ShopifyOrderTrait;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use App\Repositories\Order\OrderRepositoryInterface;
-
 class OrderSyncJob implements ShouldQueue
 {
     use Queueable, ShopifyOrderTrait, ResponseTrait;
@@ -28,7 +26,6 @@ class OrderSyncJob implements ShouldQueue
      */
     public function handle(): void
     {
-        $this->getOrderRepository(app(OrderRepositoryInterface::class));
         $user = User::find($this->userId);
         if ($this->getOrdersFromShopify($user)) {
             $this->logInfo('Orders Synced successfully from Shopify for user ID: ' . $this->userId);

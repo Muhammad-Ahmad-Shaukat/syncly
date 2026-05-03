@@ -10,7 +10,7 @@ const Order = sequelize.define("Order", {
     status: { type: DataTypes.STRING, allowNull: true },
     currency: { type: DataTypes.STRING(8), allowNull: true },
     total_amount: { type: DataTypes.DECIMAL(12, 2), allowNull: true },
-    source: { type: DataTypes.ENUM("backend", "woocommerce"), allowNull: false, defaultValue: "woocommerce" },
+    source: { type: DataTypes.ENUM("backend", "woocommerce", "shopify"), allowNull: false, defaultValue: "woocommerce" },
     source_updated_at: { type: DataTypes.DATE, allowNull: true },
     last_synced_at: { type: DataTypes.DATE, allowNull: true },
     version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
