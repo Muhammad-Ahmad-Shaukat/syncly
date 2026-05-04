@@ -53,7 +53,7 @@ export default function PricingScreen() {
   return (
     <Screen scroll>
       <View style={styles.pad}>
-        <Header title="Pricing" subtitle="Manage your InventSync subscription with Stripe." />
+        <Header title="Pricing" subtitle="Manage your Syncly subscription with Stripe." />
         {user ? (
           <Text style={{ color: palette.textMuted, marginBottom: 8 }}>
             Current plan: <Text style={{ color: palette.text, fontWeight: '600' }}>{user.tierType}</Text> · billing{' '}

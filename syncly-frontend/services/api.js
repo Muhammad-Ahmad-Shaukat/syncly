@@ -2,30 +2,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getApiBase } from '../config/api';
 
-const ACCESS_KEY = 'inventsync_access_token';
-const REFRESH_KEY = 'inventsync_refresh_token';
+const ACCESS_KEY = 'syncly_access_token';
+const REFRESH_KEY = 'syncly_refresh_token';
+const LEGACY_ACCESS_KEY = 'inventsync_access_token';
+const LEGACY_REFRESH_KEY = 'inventsync_refresh_token';
 
 let refreshInFlight = null;
 
 export async function setAuthTokens({ accessToken, refreshToken }) {
   if (accessToken != null) {
     await AsyncStorage.setItem(ACCESS_KEY, accessToken);
+    await AsyncStorage.removeItem(LEGACY_ACCESS_KEY);
   }
   if (refreshToken != null) {
     await AsyncStorage.setItem(REFRESH_KEY, refreshToken);
+    await AsyncStorage.removeItem(LEGACY_REFRESH_KEY);
   }
 }
 
 export async function clearAuthTokens() {
-  await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY]);
+  await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY, LEGACY_ACCESS_KEY, LEGACY_REFRESH_KEY]);
 }
 
 export async function getAccessToken() {
-  return AsyncStorage.getItem(ACCESS_KEY);
+  let t = await AsyncStorage.getItem(ACCESS_KEY);
+  if (!t) {
+    t = await AsyncStorage.getItem(LEGACY_ACCESS_KEY);
+    if (t) {
+      await AsyncStorage.setItem(ACCESS_KEY, t);
+      await AsyncStorage.removeItem(LEGACY_ACCESS_KEY);
+    }
+  }
+  return t;
 }
 
 async function getRefreshToken() {
-  return AsyncStorage.getItem(REFRESH_KEY);
+  let t = await AsyncStorage.getItem(REFRESH_KEY);
+  if (!t) {
+    t = await AsyncStorage.getItem(LEGACY_REFRESH_KEY);
+    if (t) {
+      await AsyncStorage.setItem(REFRESH_KEY, t);
+      await AsyncStorage.removeItem(LEGACY_REFRESH_KEY);
+    }
+  }
+  return t;
 }
 
 async function runRefresh() {
@@ -93,6 +113,29 @@ export async function apiRequest(path, options = {}) {
     }
   }
 
+  return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * Upload a local image for a product (multipart field `image`). Returns `{ url }` relative to server, e.g. `/uploads/mobile/...`.
+ */
+export async function uploadProductImage(localUri, mimeType = 'image/jpeg') {
+  const base = getApiBase();
+  const url = `${base}/api/mobile/upload/product-image`;
+  const token = await getAccessToken();
+  const form = new FormData();
+  const nameFromUri = localUri.split('/').pop()?.split('?')[0] || 'upload.jpg';
+  form.append('image', {
+    uri: localUri,
+    type: mimeType,
+    name: nameFromUri.endsWith('.') ? 'upload.jpg' : nameFromUri,
+  });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
 }
 

@@ -1,4 +1,5 @@
 node_modules
+uploads/
 pnpm-lock.yaml
 .env
 package-lock.json

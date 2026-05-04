@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "syncly-frontend",
+    "name": "Syncly",
     "slug": "syncly-frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -30,6 +30,13 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Syncly attaches photos you choose to new products.",
+          "cameraPermission": "Syncly can use the camera to capture product photos."
         }
       ]
     ]

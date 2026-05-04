@@ -62,7 +62,7 @@ function MenuOverlay({ visible, onClose, user }) {
               <MaterialCommunityIcons name="shopping-outline" size={22} color={palette.primary} />
             </View>
             <View style={styles.overlayCopy}>
-              <Text style={[styles.brandTitle, { color: palette.text }]}>InventSync</Text>
+              <Text style={[styles.brandTitle, { color: palette.text }]}>Syncly</Text>
               <Text style={[styles.brandSubtitle, { color: palette.textMuted }]}>Shopify + WooCommerce inventory</Text>
             </View>
           </View>

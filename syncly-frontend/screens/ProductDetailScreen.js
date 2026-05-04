@@ -8,6 +8,7 @@ import CustomInput from '../components/CustomInput';
 import Header from '../components/Header';
 import { useThemePalette } from '../hooks/useThemePalette';
 import { apiRequest } from '../services/api';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 export default function ProductDetailScreen({ route, navigation }) {
   const palette = useThemePalette();
@@ -67,7 +68,9 @@ export default function ProductDetailScreen({ route, navigation }) {
     );
   }
 
-  const uri = product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80';
+  const uri =
+    resolveMediaUrl(product.image_url) ||
+    'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80';
 
   return (
     <Screen scroll keyboardAvoiding>

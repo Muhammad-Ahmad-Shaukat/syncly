@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   FlatList,
   Image,
@@ -20,6 +21,7 @@ import Badge from '../components/Badge';
 import SkeletonLoader, { SkeletonCard } from '../components/SkeletonLoader';
 import { useThemePalette } from '../hooks/useThemePalette';
 import { apiRequest } from '../services/api';
+import { resolveMediaUrl } from '../utils/mediaUrl';
 
 const PLATFORMS = [
   { id: 'all', label: 'All' },
@@ -59,9 +61,11 @@ export default function ProductsScreen({ navigation }) {
     setLoading(false);
   }, [query, platform, lowOnly]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   function toggleSelect(id) {
     setSelected((prev) => {
@@ -170,7 +174,7 @@ export default function ProductsScreen({ navigation }) {
             const low = qty <= 10;
             const checked = selected.has(item.id);
             const uri =
-              item.image_url ||
+              resolveMediaUrl(item.image_url) ||
               'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80';
             return (
               <Card style={styles.productCard}>

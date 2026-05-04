@@ -1,5 +1,5 @@
 /**
- * Design tokens derived from DESIGN.md (Airbnb-style InventSync shell).
+ * Design tokens derived from DESIGN.md (Airbnb-style Syncly shell).
  * Numeric radii/spacing for React Native StyleSheet.
  */
 

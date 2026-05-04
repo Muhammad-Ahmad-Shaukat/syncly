@@ -1,4 +1,8 @@
 import express from "express";
+import fs from "fs";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Op } from "sequelize";
 import {
     User,
@@ -24,6 +28,25 @@ import { enqueueSyncJob, createRunLog, finishRunLog } from "../services/sync/syn
 import { maybeNotifyLowStock } from "../utils/push-expo.js";
 
 const router = express.Router();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const mobileProductUploadDir = path.join(__dirname, "..", "uploads", "mobile");
+fs.mkdirSync(mobileProductUploadDir, { recursive: true });
+
+const productImageStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, mobileProductUploadDir),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || "").toLowerCase();
+        const safeExt = ext && ext.length <= 6 && /^\.[a-z0-9]+$/i.test(ext) ? ext : ".jpg";
+        cb(null, `${req.mobileUserId}-${Date.now()}${safeExt}`);
+    }
+});
+
+const uploadProductImageMiddleware = multer({
+    storage: productImageStorage,
+    limits: { fileSize: 8 * 1024 * 1024 }
+});
 
 const REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -281,6 +304,21 @@ router.get("/dashboard/metrics", requireMobileUser, async (req, res) => {
     });
 });
 
+router.post("/upload/product-image", requireMobileUser, (req, res) => {
+    uploadProductImageMiddleware.single("image")(req, res, (err) => {
+        if (err) {
+            const msg =
+                err.code === "LIMIT_FILE_SIZE" ? "Image too large (max 8MB)" : err.message || "Upload failed";
+            return res.status(400).json({ success: false, error: msg });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: "Image file required (form field: image)" });
+        }
+        const relative = `/uploads/mobile/${req.file.filename}`;
+        res.json({ success: true, url: relative });
+    });
+});
+
 router.get("/products", requireMobileUser, async (req, res) => {
     const stores = await Store.findAll({ where: { user_id: req.mobileUserId }, attributes: ["id"] });
     const storeIds = stores.map((s) => s.id);
@@ -435,7 +473,9 @@ router.post("/products", requireMobileUser, async (req, res) => {
         price,
         inventory_quantity: inv,
         status,
-        description
+        description,
+        image_url: imageUrl,
+        image_alt_text: imageAltText
     } = req.body || {};
     const store = await Store.findOne({
         where: { id: storeId, user_id: req.mobileUserId }
@@ -454,6 +494,8 @@ router.post("/products", requireMobileUser, async (req, res) => {
         inventory_quantity: inv ?? null,
         status: status || "draft",
         description: description || null,
+        image_url: typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null,
+        image_alt_text: typeof imageAltText === "string" && imageAltText.trim() ? imageAltText.trim() : null,
         source: "backend"
     });
     await enqueueSyncJob({
@@ -470,7 +512,9 @@ router.post("/products", requireMobileUser, async (req, res) => {
                 sku: product.sku,
                 price: product.price,
                 inventory_quantity: product.inventory_quantity,
-                status: product.status
+                status: product.status,
+                description: product.description,
+                image_url: product.image_url
             }
         }
     });

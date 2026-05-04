@@ -77,9 +77,9 @@ export default function LoginScreen() {
       <View style={[styles.root, { backgroundColor: palette.background }]}>
         <View style={styles.hero}>
           <View style={[styles.logoMark, { backgroundColor: palette.primarySoft }]}>
-            <Text style={[styles.logoLetter, { color: palette.primary }]}>I</Text>
+            <Text style={[styles.logoLetter, { color: palette.primary }]}>S</Text>
           </View>
-          <Text style={[styles.brand, { color: palette.text }]}>InventSync</Text>
+          <Text style={[styles.brand, { color: palette.text }]}>Syncly</Text>
           <Text style={[styles.copy, { color: palette.textMuted }]}>Manage Shopify and WooCommerce inventory, sync, and orders from one mobile workspace.</Text>
         </View>
 

@@ -45,7 +45,7 @@ export default function DashboardScreen({ navigation }) {
   return (
     <Screen scroll>
       <View style={styles.container}>
-        <Header title="Dashboard" subtitle="Live metrics from your InventSync backend." />
+        <Header title="Dashboard" subtitle="Live metrics from your Syncly backend." />
 
         {loading ? <SkeletonLoader height={42} /> : null}
 
