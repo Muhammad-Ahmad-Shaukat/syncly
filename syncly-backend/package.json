@@ -12,13 +12,16 @@
   "main": "index.js",
   "scripts": {
     "test": "node tests/connector-contract.test.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed:demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.76.6",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "ioredis": "^5.10.1",
     "joi": "^18.1.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",

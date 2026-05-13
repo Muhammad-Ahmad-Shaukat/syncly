@@ -1,6 +1,13 @@
-import { NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme, createNavigationContainerRef } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  DefaultTheme as NavigationLightTheme,
+  DarkTheme as NavigationDarkTheme,
+  createNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -24,8 +31,21 @@ import ProductDetailScreen from '../screens/ProductDetailScreen';
 import { useThemePalette } from '../hooks/useThemePalette';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-const Stack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+const HomeStack = createNativeStackNavigator();
+const InventoryStack = createNativeStackNavigator();
+const OrdersStack = createNativeStackNavigator();
+const SettingsStack = createNativeStackNavigator();
+
 const navigationRef = createNavigationContainerRef();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1 },
+  },
+});
+
+const SynclyMenuContext = createContext({ openMenu: () => {} });
 
 function getInitials(name) {
   return String(name || 'Admin')
@@ -40,17 +60,17 @@ function MenuOverlay({ visible, onClose, user }) {
   const palette = useThemePalette();
 
   const items = [
-    { label: 'Dashboard', icon: 'view-dashboard-outline', route: 'Dashboard' },
-    { label: 'Inventory', icon: 'package-variant-closed', route: 'Products' },
-    { label: 'Sync', icon: 'sync', route: 'Sync' },
-    { label: 'Orders', icon: 'receipt-text-outline', route: 'Orders' },
-    { label: 'Campaigns', icon: 'email-outline', route: 'Campaigns' },
-    { label: 'Inbox', icon: 'inbox-outline', route: 'Inbox' },
-    { label: 'Pricing', icon: 'credit-card-outline', route: 'Pricing' },
-    { label: 'Add Product', icon: 'plus-box-outline', route: 'Add Product' },
-    { label: 'Add Order', icon: 'cart-plus', route: 'Add Order' },
-    { label: 'Settings', icon: 'cog-outline', route: 'Settings' },
-    { label: 'Logout', icon: 'logout', route: 'Logout' },
+    { label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home', screen: 'Dashboard' },
+    { label: 'Inventory', icon: 'package-variant-closed', tab: 'Inventory', screen: 'Products' },
+    { label: 'Sync', icon: 'sync', tab: 'Home', screen: 'Sync' },
+    { label: 'Orders', icon: 'receipt-text-outline', tab: 'Orders', screen: 'OrdersMain' },
+    { label: 'Campaigns', icon: 'email-outline', tab: 'Home', screen: 'Campaigns' },
+    { label: 'Inbox', icon: 'inbox-outline', tab: 'Home', screen: 'Inbox' },
+    { label: 'Pricing', icon: 'credit-card-outline', tab: 'Home', screen: 'Pricing' },
+    { label: 'Add Product', icon: 'plus-box-outline', tab: 'Inventory', screen: 'Add Product' },
+    { label: 'Add Order', icon: 'cart-plus', tab: 'Orders', screen: 'Add Order' },
+    { label: 'Settings', icon: 'cog-outline', tab: 'Settings', screen: 'SettingsMain' },
+    { label: 'Logout', icon: 'logout', tab: 'Settings', screen: 'Logout' },
   ];
 
   return (
@@ -80,12 +100,12 @@ function MenuOverlay({ visible, onClose, user }) {
           <View style={styles.menuList}>
             {items.map((item) => (
               <Pressable
-                key={item.route}
+                key={`${item.tab}-${item.screen}`}
                 style={[styles.menuItem, { borderBottomColor: palette.border }]}
                 onPress={() => {
                   onClose();
                   if (navigationRef.isReady()) {
-                    navigationRef.navigate(item.route);
+                    navigationRef.navigate(item.tab, { screen: item.screen });
                   }
                 }}
               >
@@ -97,6 +117,150 @@ function MenuOverlay({ visible, onClose, user }) {
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function HomeNavigator() {
+  const { openMenu } = useContext(SynclyMenuContext);
+  const palette = useThemePalette();
+  return (
+    <HomeStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: palette.surface },
+        headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
+        headerTintColor: palette.text,
+        contentStyle: { backgroundColor: palette.background },
+      }}
+    >
+      <HomeStack.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          title: 'Home',
+          headerLeft: () => (
+            <Pressable onPress={() => openMenu()} style={styles.headerMenuButton}>
+              <MaterialCommunityIcons name="menu" size={24} color={palette.text} />
+            </Pressable>
+          ),
+        }}
+      />
+      <HomeStack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
+      <HomeStack.Screen name="Campaigns" component={CampaignsScreen} options={{ title: 'Campaigns' }} />
+      <HomeStack.Screen name="Inbox" component={InboxScreen} options={{ title: 'Inbox' }} />
+      <HomeStack.Screen name="Pricing" component={PricingScreen} options={{ title: 'Pricing' }} />
+    </HomeStack.Navigator>
+  );
+}
+
+function InventoryNavigator() {
+  const palette = useThemePalette();
+  return (
+    <InventoryStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: palette.surface },
+        headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
+        headerTintColor: palette.text,
+        contentStyle: { backgroundColor: palette.background },
+      }}
+    >
+      <InventoryStack.Screen name="Products" component={ProductsScreen} options={{ title: 'Inventory' }} />
+      <InventoryStack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product' }} />
+      <InventoryStack.Screen name="Add Product" component={AddProductScreen} options={{ title: 'Add Product' }} />
+    </InventoryStack.Navigator>
+  );
+}
+
+function OrdersNavigator() {
+  const palette = useThemePalette();
+  return (
+    <OrdersStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: palette.surface },
+        headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
+        headerTintColor: palette.text,
+        contentStyle: { backgroundColor: palette.background },
+      }}
+    >
+      <OrdersStack.Screen name="OrdersMain" component={OrdersScreen} options={{ title: 'Orders' }} />
+      <OrdersStack.Screen name="Add Order" component={AddOrderScreen} options={{ title: 'Add Order' }} />
+    </OrdersStack.Navigator>
+  );
+}
+
+function SettingsNavigator() {
+  const palette = useThemePalette();
+  return (
+    <SettingsStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: palette.surface },
+        headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
+        headerTintColor: palette.text,
+        contentStyle: { backgroundColor: palette.background },
+      }}
+    >
+      <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <SettingsStack.Screen name="Logout" component={LogoutScreen} options={{ title: 'Logout', presentation: 'modal' }} />
+    </SettingsStack.Navigator>
+  );
+}
+
+function MainTabs() {
+  const palette = useThemePalette();
+  const tabBarActive = palette.primary;
+  const tabBarInactive = palette.textMuted;
+
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: tabBarActive,
+        tabBarInactiveTintColor: tabBarInactive,
+        tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.border },
+      }}
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeNavigator}
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="home-outline" color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Inventory"
+        component={InventoryNavigator}
+        options={{
+          title: 'Inventory',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="package-variant-closed" color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Orders"
+        component={OrdersNavigator}
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="receipt-text-outline" color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsNavigator}
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog-outline" color={color} size={size} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+function MainTabsShell({ setMenuVisible }) {
+  const openMenu = useCallback(() => setMenuVisible(true), [setMenuVisible]);
+  const menuValue = useMemo(() => ({ openMenu }), [openMenu]);
+  return (
+    <SynclyMenuContext.Provider value={menuValue}>
+      <MainTabs />
+    </SynclyMenuContext.Provider>
   );
 }
 
@@ -152,27 +316,11 @@ function AppNavigator() {
       <NavigationContainer ref={navigationRef} theme={navigationTheme}>
         <StatusBar style={settings.isDarkMode ? 'light' : 'dark'} />
         {isAuthenticated ? (
-          <Stack.Navigator
-            screenOptions={{
-              headerStyle: { backgroundColor: palette.surface },
-              headerTitleStyle: { color: palette.text, fontWeight: '600', fontSize: 16 },
-              headerTintColor: palette.text,
-              contentStyle: { backgroundColor: palette.background },
-            }}
-          >
-            <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Dashboard', headerLeft: () => <Pressable onPress={() => setMenuVisible(true)} style={styles.headerMenuButton}><MaterialCommunityIcons name="menu" size={24} color={palette.text} /></Pressable> }} />
-            <Stack.Screen name="Products" component={ProductsScreen} options={{ title: 'Inventory' }} />
-            <Stack.Screen name="ProductDetail" component={ProductDetailScreen} options={{ title: 'Product' }} />
-            <Stack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
-            <Stack.Screen name="Orders" component={OrdersScreen} options={{ title: 'Orders' }} />
-            <Stack.Screen name="Campaigns" component={CampaignsScreen} options={{ title: 'Campaigns' }} />
-            <Stack.Screen name="Inbox" component={InboxScreen} options={{ title: 'Inbox' }} />
-            <Stack.Screen name="Pricing" component={PricingScreen} options={{ title: 'Pricing' }} />
-            <Stack.Screen name="Add Product" component={AddProductScreen} options={{ title: 'Add Product' }} />
-            <Stack.Screen name="Add Order" component={AddOrderScreen} options={{ title: 'Add Order' }} />
-            <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-            <Stack.Screen name="Logout" component={LogoutScreen} options={{ title: 'Logout', presentation: 'modal' }} />
-          </Stack.Navigator>
+          <RootStack.Navigator screenOptions={{ headerShown: false }}>
+            <RootStack.Screen name="Main">
+              {() => <MainTabsShell setMenuVisible={setMenuVisible} />}
+            </RootStack.Screen>
+          </RootStack.Navigator>
         ) : (
           <AuthStack />
         )}
@@ -184,9 +332,11 @@ function AppNavigator() {
 
 export default function AppShell() {
   return (
-    <AppStateProvider>
-      <AppNavigator />
-    </AppStateProvider>
+    <QueryClientProvider client={queryClient}>
+      <AppStateProvider>
+        <AppNavigator />
+      </AppStateProvider>
+    </QueryClientProvider>
   );
 }
 

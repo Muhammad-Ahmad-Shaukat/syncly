@@ -21,7 +21,17 @@ class RedirectIfAuthenticated
 
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
-                return redirect(RouteServiceProvider::$home);
+                $query = array_filter([
+                    'shop' => $request->query('shop'),
+                    'host' => $request->query('host'),
+                ], fn ($v) => $v !== null && $v !== '');
+
+                $url = RouteServiceProvider::$home;
+                if ($query !== []) {
+                    $url .= '?'.http_build_query($query);
+                }
+
+                return redirect($url);
             }
         }
         return $next($request);

@@ -54,6 +54,7 @@ Store.hasMany(SyncEventLog, { foreignKey: "store_id", onDelete: "CASCADE" });
 Store.hasMany(SyncRunLog, { foreignKey: "store_id", onDelete: "CASCADE" });
 Store.hasMany(SyncJob, { foreignKey: "store_id", onDelete: "CASCADE" });
 Store.hasMany(SyncDeadLetter, { foreignKey: "store_id", onDelete: "CASCADE" });
+SyncEventLog.belongsTo(Store, { foreignKey: "store_id" });
 
 export async function syncDatabase() {
     const alter = process.env.DB_SYNC_ALTER === "true";

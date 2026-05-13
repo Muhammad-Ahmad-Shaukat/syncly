@@ -7,7 +7,7 @@ import {
     useBreakpoints, useIndexResourceState, useSetIndexFiltersMode
 } from '@shopify/polaris';
 import { useCallback, useEffect, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { usePage, router } from '@inertiajs/react';
 import { DeleteIcon, EditIcon } from '@shopify/polaris-icons';
 
 
@@ -486,6 +486,7 @@ export default function Dashboard() {
             <Page
                 title='Dashboard'
                 fullWidth
+                primaryAction={{ content: 'Syncly', onAction: () => router.visit(route('syncly.home')) }}
                 backAction={() => { }}
             >
                 <div style={{ display: "flex", gap: '10px', justifyContent: "end" }}>

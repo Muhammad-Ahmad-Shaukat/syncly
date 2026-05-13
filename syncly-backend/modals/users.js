@@ -85,6 +85,12 @@ const User = sequelize.define('User', {
         type: DataTypes.TEXT,
         allowNull: true
     },
+    conflict_strategy: {
+        type: DataTypes.ENUM("syncly_master", "latest_wins", "manual"),
+        allowNull: false,
+        defaultValue: "manual",
+        comment: "How to resolve cross-channel conflicts when not manually reviewed"
+    },
     created_at: {
         type: DataTypes.DATE,
         allowNull: false,

@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../../db/db.js";
+import { generateProductPublicId } from "../../utils/syncly-public-id.js";
 
 const Product = sequelize.define('Product', {
     id: {
@@ -154,12 +155,26 @@ const Product = sequelize.define('Product', {
         type: DataTypes.JSON,
         allowNull: true,
         comment: 'Full raw product object from Shopify/WooCommerce API'
+    },
+
+    syncly_public_id: {
+        type: DataTypes.STRING(32),
+        allowNull: true,
+        unique: true,
+        comment: 'Permanent Syncly catalog ID (e.g. SYN-P-...)'
     }
 }, {
     tableName: 'products',
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    hooks: {
+        beforeCreate(product) {
+            if (!product.syncly_public_id) {
+                product.syncly_public_id = generateProductPublicId();
+            }
+        }
+    },
     indexes: [
         {
             unique: true,

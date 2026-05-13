@@ -62,7 +62,10 @@ export default function DashboardScreen({ navigation }) {
             <Pressable style={[styles.cta, { backgroundColor: palette.primary }]} onPress={() => navigation.navigate('Sync')}>
               <Text style={styles.ctaText}>Open sync</Text>
             </Pressable>
-            <Pressable style={[styles.cta, { backgroundColor: palette.surfaceSoft, borderWidth: 1, borderColor: palette.border }]} onPress={() => navigation.navigate('Add Product')}>
+            <Pressable
+              style={[styles.cta, { backgroundColor: palette.surfaceSoft, borderWidth: 1, borderColor: palette.border }]}
+              onPress={() => navigation.navigate('Inventory', { screen: 'Add Product' })}
+            >
               <Text style={[styles.ctaText, { color: palette.text }]}>Add product</Text>
             </Pressable>
           </View>

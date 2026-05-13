@@ -63,6 +63,12 @@ export async function enqueueSyncJob({
             run_log_id: runLogId
         }
     });
+    try {
+        const { maybeQueueSyncJobInRedis } = await import("./bull-sync.js");
+        await maybeQueueSyncJobInRedis(job);
+    } catch (e) {
+        console.warn("[enqueueSyncJob] Bull optional queue:", e.message);
+    }
     return job;
 }
 

@@ -13,7 +13,10 @@ return new class extends Migration
     {
         Schema::create('personal_access_tokens', function (Blueprint $table) {
             $table->id();
-            $table->morphs('tokenable');
+            // Short index name: with DB_PREFIX (shopify_app_) Laravel's default morphs index exceeds MySQL's 64-char limit.
+            $table->unsignedBigInteger('tokenable_id');
+            $table->string('tokenable_type');
+            $table->index(['tokenable_type', 'tokenable_id'], 'pat_tokenable_idx');
             $table->string('name');
             $table->string('token', 64)->unique();
             $table->text('abilities')->nullable();

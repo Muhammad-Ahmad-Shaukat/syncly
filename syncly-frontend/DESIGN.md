@@ -543,3 +543,16 @@ There are no progressive elevation tiers — the system either has the one shado
 - **Map view styling:** the search-results map uses Mapbox-tinted tiles with custom Rausch markers; not captured here.
 - **Form input error states:** error text color (`{colors.primary-error-text}`) is documented, but the full input outline + helper-text combination on validation failure was not visible in the captured surfaces.
 - **Sub-brand palettes:** Luxe (`{colors.luxe}`) and Plus (`{colors.plus}`) are documented as tokens, but their full sub-system (typography overrides, surface treatment) lives on separate sub-domains and is not captured here.
+
+---
+
+## Syncly product theme (dark SaaS)
+
+The Airbnb-derived light tokens above describe early RN shells and spacing discipline. **Product direction** for Syncly is a **premium dark canvas**:
+
+- **Background:** deep charcoal / near-black (`#0b0f14` range); **surface cards** one step lighter than canvas.
+- **Primary accent (sync / success paths):** teal or emerald (`#14b8a6`–`#34d399`).
+- **Orders / commerce accent:** indigo (`#6366f1` range).
+- **Semantic:** success `#22c55e`, warning `#eab308`, danger `#fb7185` (align with `constants/theme.js`).
+
+Prefer extending `useThemePalette` / theme palettes for dark defaults rather than replacing Airbnb structural spacing and radius rules overnight.

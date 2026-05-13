@@ -24,6 +24,10 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
+            'shopify' => [
+                'shop' => request()->query('shop'),
+                'host' => request()->query('host'),
+            ],
         ]);
     }
 
@@ -36,7 +40,17 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect('dashboard');
+        $query = array_filter([
+            'shop' => $request->input('shop'),
+            'host' => $request->input('host'),
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $url = RouteServiceProvider::$home;
+        if ($query !== []) {
+            $url .= (str_contains($url, '?') ? '&' : '?').http_build_query($query);
+        }
+
+        return redirect()->to($url);
     }
 
     /**

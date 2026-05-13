@@ -10,6 +10,7 @@ import { sequelize, syncDatabase } from "./db/models.js";
 import userRoutes from './routes/user-routes/user-routes.js';
 import woocommerceRoutes from "./routes/connectors/woocommerce-routes.js";
 import shopifyRoutes from "./routes/connectors/shopify-routes.js";
+import synclyMerchantRouter from "./routes/syncly-merchant-router.js";
 import mobileRouter from "./routes/mobile-router.js";
 import billingRoutes from "./routes/billing-routes.js";
 import stripeWebhookRouter from "./routes/stripe-webhook.js";
@@ -17,6 +18,11 @@ import { startSyncWorker } from "./services/sync/worker.js";
 import { startEmailCampaignWorker } from "./services/email-campaign-worker.js";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, "uploads");
+fs.mkdirSync(path.join(uploadsDir, "mobile"), { recursive: true });
 
 const app = express();
 
@@ -38,11 +44,6 @@ const corsOptions = {
     credentials: true,
 };
 
-// ✅ Add this block
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.join(__dirname, "uploads");
-
 app.use(cors(corsOptions));
 app.use("/uploads", express.static(uploadsDir));
 app.use("/api/webhooks/stripe", stripeWebhookRouter);
@@ -57,6 +58,7 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api/users', userRoutes);
 app.use("/api/mobile", mobileRouter);
+app.use("/api/syncly", synclyMerchantRouter);
 app.use("/api/billing", billingRoutes);
 app.use("/api/connectors/woocommerce", woocommerceRoutes);
 app.use("/api/connectors/shopify", shopifyRoutes);
