@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { Op } from "sequelize";
 import {
+    sequelize,
     User,
     Store,
     Product,
@@ -29,6 +30,37 @@ import { maybeNotifyLowStock } from "../utils/push-expo.js";
 import { detectMerchantConflicts } from "../services/conflict-detection.js";
 
 const router = express.Router();
+
+/** Last N calendar days (oldest → newest) creation counts for charts. */
+async function dailyCreationCounts(storeIds, tableName, daySpan = 7) {
+    if (!storeIds.length) return Array(daySpan).fill(0);
+    const safeTable = tableName === "orders" ? "orders" : "products";
+    const ids = storeIds.map(Number).filter((n) => n > 0);
+    if (!ids.length) return Array(daySpan).fill(0);
+    const placeholders = ids.map(() => "?").join(",");
+    const [rows] = await sequelize.query(
+        `SELECT DATE(created_at) AS d, COUNT(*) AS c FROM \`${safeTable}\` WHERE store_id IN (${placeholders}) AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY) GROUP BY DATE(created_at)`,
+        { replacements: [...ids, daySpan - 1] }
+    );
+    const countsByDay = new Map();
+    for (const r of rows || []) {
+        const raw = r.d;
+        const key =
+            raw instanceof Date
+                ? raw.toISOString().slice(0, 10)
+                : String(raw).slice(0, 10);
+        countsByDay.set(key, Number(r.c) || 0);
+    }
+    const series = [];
+    for (let i = daySpan - 1; i >= 0; i -= 1) {
+        const dt = new Date();
+        dt.setHours(0, 0, 0, 0);
+        dt.setDate(dt.getDate() - i);
+        const key = dt.toISOString().slice(0, 10);
+        series.push(countsByDay.get(key) || 0);
+    }
+    return series;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -197,9 +229,65 @@ router.put("/me/push-token", requireMobileUser, async (req, res) => {
 router.get("/stores", requireMobileUser, async (req, res) => {
     const rows = await Store.findAll({
         where: { user_id: req.mobileUserId },
-        attributes: ["id", "store_name", "platform", "store_url", "sync_status", "last_synced_at"]
+        attributes: [
+            "id",
+            "store_name",
+            "platform",
+            "store_url",
+            "sync_status",
+            "last_synced_at",
+            "cross_sync_enabled",
+            "cross_sync_peer_ids"
+        ]
     });
     res.json({ success: true, data: rows });
+});
+
+router.patch("/stores/:storeId/sync", requireMobileUser, async (req, res) => {
+    const sid = Number(req.params.storeId);
+    const store = await Store.findOne({ where: { id: sid, user_id: req.mobileUserId } });
+    if (!store) {
+        return res.status(404).json({ success: false, error: "Store not found" });
+    }
+    const { cross_sync_enabled: enabled, cross_sync_peer_ids: peerIds } = req.body || {};
+    const patch = {};
+    if (typeof enabled === "boolean") {
+        patch.cross_sync_enabled = enabled;
+    }
+    if (Array.isArray(peerIds)) {
+        const mine = await Store.findAll({ where: { user_id: req.mobileUserId }, attributes: ["id"] });
+        const allowed = new Set(mine.map((s) => s.id));
+        allowed.delete(store.id);
+        patch.cross_sync_peer_ids = peerIds.map(Number).filter((id) => allowed.has(id));
+    }
+    if (Object.keys(patch).length) {
+        await store.update(patch);
+    }
+    await store.reload({
+        attributes: [
+            "id",
+            "store_name",
+            "platform",
+            "store_url",
+            "sync_status",
+            "last_synced_at",
+            "cross_sync_enabled",
+            "cross_sync_peer_ids"
+        ]
+    });
+    res.json({
+        success: true,
+        data: {
+            id: store.id,
+            store_name: store.store_name,
+            platform: store.platform,
+            store_url: store.store_url,
+            sync_status: store.sync_status,
+            last_synced_at: store.last_synced_at,
+            cross_sync_enabled: Boolean(store.cross_sync_enabled),
+            cross_sync_peer_ids: Array.isArray(store.cross_sync_peer_ids) ? store.cross_sync_peer_ids : []
+        }
+    });
 });
 
 router.post("/orders", requireMobileUser, async (req, res) => {
@@ -245,13 +333,30 @@ router.get("/orders", requireMobileUser, async (req, res) => {
     if (!storeIds.length) {
         return res.json({ success: true, data: [] });
     }
-    const rows = await Order.findAll({
-        where: { store_id: storeIds },
-        order: [["created_at", "DESC"]],
-        limit: 100,
-        include: [{ model: Store, attributes: ["store_name", "platform"] }]
-    });
-    res.json({ success: true, data: rows });
+    try {
+        const rows = await Order.findAll({
+            where: { store_id: storeIds },
+            order: [["created_at", "DESC"]],
+            limit: 100,
+            attributes: [
+                "id",
+                "store_id",
+                "platform",
+                "platform_order_id",
+                "order_number",
+                "status",
+                "total_amount",
+                "currency",
+                "created_at",
+                "updated_at"
+            ],
+            include: [{ model: Store, attributes: ["store_name", "platform"] }]
+        });
+        res.json({ success: true, data: rows });
+    } catch (e) {
+        console.error("[mobile] GET /orders", e?.parent?.sqlMessage || e?.message);
+        res.json({ success: true, data: [], warning: "Orders list unavailable until schema is migrated." });
+    }
 });
 
 router.get("/dashboard/metrics", requireMobileUser, async (req, res) => {
@@ -269,7 +374,9 @@ router.get("/dashboard/metrics", requireMobileUser, async (req, res) => {
                 orderCount: 0,
                 recentOrders: [],
                 stores: [],
-                lastSyncByStore: []
+                lastSyncByStore: [],
+                productSpark: Array(7).fill(0),
+                orderSpark: Array(7).fill(0)
             }
         });
     }
@@ -290,6 +397,8 @@ router.get("/dashboard/metrics", requireMobileUser, async (req, res) => {
         limit: 5,
         attributes: ["id", "order_number", "status", "total_amount", "currency", "created_at", "store_id"]
     });
+    const productSpark = await dailyCreationCounts(storeIds, "products", 7);
+    const orderSpark = await dailyCreationCounts(storeIds, "orders", 7);
     res.json({
         success: true,
         data: {
@@ -304,7 +413,9 @@ router.get("/dashboard/metrics", requireMobileUser, async (req, res) => {
                 platform: s.platform,
                 last_synced_at: s.last_synced_at,
                 sync_status: s.sync_status
-            }))
+            })),
+            productSpark,
+            orderSpark
         }
     });
 });
@@ -330,7 +441,7 @@ router.get("/products", requireMobileUser, async (req, res) => {
     if (!storeIds.length) {
         return res.json({ success: true, data: [] });
     }
-    const { search, platform, low_stock: lowStock } = req.query;
+    const { search, platform, low_stock: lowStock, sort } = req.query;
     const threshold = Number(process.env.LOW_STOCK_THRESHOLD || 10);
     const where = { store_id: storeIds };
     if (platform && ["shopify", "woocommerce"].includes(platform)) {
@@ -344,13 +455,19 @@ router.get("/products", requireMobileUser, async (req, res) => {
     if (search) {
         where[Op.or] = [
             { title: { [Op.like]: `%${search}%` } },
-            { sku: { [Op.like]: `%${search}%` } }
+            { sku: { [Op.like]: `%${search}%` } },
+            { syncly_public_id: { [Op.like]: `%${search}%` } }
         ];
     }
+    let order = [["updated_at", "DESC"]];
+    if (sort === "price_asc") order = [["price", "ASC"]];
+    else if (sort === "price_desc") order = [["price", "DESC"]];
+    else if (sort === "title") order = [["title", "ASC"]];
+    else if (sort === "stock_low") order = [["inventory_quantity", "ASC"]];
     const rows = await Product.findAll({
         where,
         include: [{ model: Store, attributes: ["id", "store_name", "platform"] }],
-        order: [["updated_at", "DESC"]],
+        order,
         limit: 200
     });
     res.json({
@@ -535,19 +652,24 @@ router.get("/sync/runs", requireMobileUser, async (req, res) => {
     }
     const rows = await SyncRunLog.findAll({
         where: { store_id: storeIds },
-        order: [["started_at", "DESC"]],
+        order: [["created_at", "DESC"]],
         limit: 50
     });
     res.json({ success: true, data: rows });
 });
 
 router.get("/sync/conflicts", requireMobileUser, async (req, res) => {
-    const rows = await SyncConflict.findAll({
-        where: { user_id: req.mobileUserId },
-        order: [["created_at", "DESC"]],
-        limit: 100
-    });
-    res.json({ success: true, data: rows });
+    try {
+        const rows = await SyncConflict.findAll({
+            where: { user_id: req.mobileUserId },
+            order: [["created_at", "DESC"]],
+            limit: 100
+        });
+        res.json({ success: true, data: rows });
+    } catch (e) {
+        console.error("[mobile] /sync/conflicts", e?.parent?.sqlMessage || e?.message);
+        res.json({ success: true, data: [], warning: "Conflict list unavailable until DB schema is updated." });
+    }
 });
 
 router.post("/sync/conflicts/:id/resolve", requireMobileUser, async (req, res) => {
@@ -595,7 +717,7 @@ router.post("/sync/trigger", requireMobileUser, async (req, res) => {
     }
     const runs = [];
     for (const sid of storeIds) {
-        const run = await createRunLog(sid, "delta");
+        const run = await createRunLog(sid, scope === "full" ? "full" : "delta");
         runs.push(run);
         if (scope === "selective" && Array.isArray(productIds) && productIds.length) {
             const prods = await Product.findAll({

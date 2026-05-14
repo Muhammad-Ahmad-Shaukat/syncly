@@ -1,44 +1,51 @@
 /**
- * Design tokens derived from DESIGN.md (Airbnb-style Syncly shell).
- * Numeric radii/spacing for React Native StyleSheet.
+ * Minimal layout tokens + vivid accents (indigo / coral / mint).
  */
 
 export const colors = {
-  primary: '#ff385c',
-  primaryActive: '#e00b41',
-  primaryDisabled: '#ffd1da',
-  primaryErrorText: '#c13515',
-  luxe: '#460479',
-  ink: '#222222',
-  body: '#3f3f3f',
-  muted: '#6a6a6a',
-  mutedSoft: '#929292',
-  hairline: '#dddddd',
-  hairlineSoft: '#ebebeb',
+  // Core
+  ink: '#0f172a',
+  inkMuted: '#475569',
   canvas: '#ffffff',
-  surfaceSoft: '#f7f7f7',
-  surfaceStrong: '#f2f2f2',
+  canvasTint: '#f8fafc',
+  hairline: 'rgba(15, 23, 42, 0.06)',
+
+  // Brand & accents
+  primary: '#6366f1',
+  primaryHover: '#4f46e5',
+  primarySoft: '#e0e7ff',
+  coral: '#fb7185',
+  coralSoft: '#ffe4e6',
+  mint: '#2dd4bf',
+  mintSoft: '#ccfbf1',
+  iris: '#a78bfa',
+  irisSoft: '#ede9fe',
+  amber: '#fbbf24',
+  amberSoft: '#fef3c7',
+
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#ef4444',
   onPrimary: '#ffffff',
-  legalLink: '#428bff',
-  scrim: '#000000',
+  legalLink: '#38bdf8',
 };
 
 export const rounded = {
   none: 0,
-  xs: 4,
-  sm: 8,
-  md: 14,
-  lg: 20,
-  xl: 32,
+  xs: 6,
+  sm: 10,
+  md: 16,
+  lg: 22,
+  xl: 28,
   full: 9999,
 };
 
 export const spacing = {
   xxs: 2,
-  xs: 4,
-  sm: 8,
-  md: 12,
-  base: 16,
+  xs: 6,
+  sm: 10,
+  md: 14,
+  base: 18,
   lg: 24,
   xl: 32,
   xxl: 48,
@@ -46,10 +53,10 @@ export const spacing = {
 };
 
 export const typography = {
-  displaySm: { fontSize: 20, fontWeight: '600', lineHeight: 24 },
+  displaySm: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   titleMd: { fontSize: 16, fontWeight: '600', lineHeight: 20 },
   bodyMd: { fontSize: 16, fontWeight: '400', lineHeight: 24 },
   bodySm: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
-  caption: { fontSize: 14, fontWeight: '500', lineHeight: 18 },
-  buttonMd: { fontSize: 16, fontWeight: '500', lineHeight: 20 },
+  caption: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  buttonMd: { fontSize: 16, fontWeight: '600', lineHeight: 20 },
 };

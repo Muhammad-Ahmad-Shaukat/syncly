@@ -29,6 +29,14 @@ const PLATFORMS = [
   { id: 'woocommerce', label: 'Woo' },
 ];
 
+const SORT_OPTIONS = [
+  { id: 'updated', label: 'Recent' },
+  { id: 'title', label: 'A–Z' },
+  { id: 'price_asc', label: 'Price ↑' },
+  { id: 'price_desc', label: 'Price ↓' },
+  { id: 'stock_low', label: 'Low stock first' },
+];
+
 function currency(value) {
   if (value == null || value === '') return '—';
   return new Intl.NumberFormat('en-US', {
@@ -38,11 +46,19 @@ function currency(value) {
   }).format(Number(value));
 }
 
+function platformChipColors(palette, id, active) {
+  if (!active) return { bg: palette.chipInactive, fg: palette.text };
+  if (id === 'shopify') return { bg: palette.iris, fg: '#fff' };
+  if (id === 'woocommerce') return { bg: palette.mint, fg: '#fff' };
+  return { bg: palette.primary, fg: '#fff' };
+}
+
 export default function ProductsScreen({ navigation }) {
   const palette = useThemePalette();
   const [products, setProducts] = useState([]);
   const [query, setQuery] = useState('');
   const [platform, setPlatform] = useState('all');
+  const [sort, setSort] = useState('updated');
   const [lowOnly, setLowOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,11 +71,12 @@ export default function ProductsScreen({ navigation }) {
     if (query.trim()) qs.set('search', query.trim());
     if (platform !== 'all') qs.set('platform', platform);
     if (lowOnly) qs.set('low_stock', '1');
+    if (sort && sort !== 'updated') qs.set('sort', sort);
     const path = `/api/mobile/products?${qs.toString()}`;
     const { ok, data } = await apiRequest(path);
     if (ok && data?.data) setProducts(data.data);
     setLoading(false);
-  }, [query, platform, lowOnly]);
+  }, [query, platform, lowOnly, sort]);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,26 +126,21 @@ export default function ProductsScreen({ navigation }) {
   return (
     <Screen>
       <View style={styles.container}>
-        <Header title="Inventory" subtitle="Unified catalog across connected stores." />
+        <Header title="Inventory" subtitle="Catalog" />
 
-        <CustomInput placeholder="Search title or SKU…" value={query} onChangeText={setQuery} />
+        <CustomInput placeholder="Search…" value={query} onChangeText={setQuery} />
 
         <View style={styles.filterRow}>
           {PLATFORMS.map((p) => {
             const active = platform === p.id;
+            const c = platformChipColors(palette, p.id, active);
             return (
               <Pressable
                 key={p.id}
                 onPress={() => setPlatform(p.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: active ? palette.primary : palette.surfaceSoft,
-                    borderColor: active ? palette.primary : palette.border,
-                  },
-                ]}
+                style={[styles.filterChip, { backgroundColor: c.bg }]}
               >
-                <Text style={{ color: active ? '#fff' : palette.text, fontWeight: '600' }}>{p.label}</Text>
+                <Text style={{ color: c.fg, fontWeight: '700', fontSize: 13 }}>{p.label}</Text>
               </Pressable>
             );
           })}
@@ -137,13 +149,32 @@ export default function ProductsScreen({ navigation }) {
             style={[
               styles.filterChip,
               {
-                backgroundColor: lowOnly ? palette.warning : palette.surfaceSoft,
-                borderColor: lowOnly ? palette.warning : palette.border,
+                backgroundColor: lowOnly ? palette.amber : palette.chipInactive,
               },
             ]}
           >
-            <Text style={{ color: lowOnly ? '#111' : palette.text, fontWeight: '600' }}>Low stock</Text>
+            <Text style={{ color: lowOnly ? '#0f172a' : palette.text, fontWeight: '700', fontSize: 13 }}>Low stock</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.filterRow}>
+          {SORT_OPTIONS.map((s) => {
+            const active = sort === s.id;
+            return (
+              <Pressable
+                key={s.id}
+                onPress={() => setSort(s.id)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? palette.irisSoft : palette.chipInactive,
+                  },
+                ]}
+              >
+                <Text style={{ color: active ? palette.iris : palette.text, fontWeight: '700', fontSize: 13 }}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {selected.size > 0 ? (
@@ -180,7 +211,13 @@ export default function ProductsScreen({ navigation }) {
               <Card style={styles.productCard}>
                 <Pressable
                   onPress={() => toggleSelect(item.id)}
-                  style={[styles.check, { borderColor: palette.border, backgroundColor: checked ? palette.primarySoft : palette.surface }]}
+                  style={[
+                    styles.check,
+                    {
+                      borderColor: checked ? palette.primary : palette.border,
+                      backgroundColor: checked ? palette.primarySoft : palette.surface,
+                    },
+                  ]}
                 >
                   <MaterialCommunityIcons name={checked ? 'check' : 'checkbox-blank-outline'} size={22} color={palette.text} />
                 </Pressable>
@@ -214,7 +251,15 @@ export default function ProductsScreen({ navigation }) {
 
         <Modal visible={bulkOpen} transparent animationType="fade">
           <View style={styles.modalBackdrop}>
-            <View style={[styles.modalCard, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+            <View
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: palette.surface,
+                  shadowColor: palette.text,
+                },
+              ]}
+            >
               <Text style={[styles.modalTitle, { color: palette.text }]}>Set stock for {selected.size} items</Text>
               <CustomInput label="New quantity" value={bulkStock} onChangeText={setBulkStock} keyboardType="number-pad" />
               <View style={styles.modalActions}>
@@ -243,9 +288,8 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 999,
-    borderWidth: 1,
   },
   bulkBar: {
     flexDirection: 'row',
@@ -266,15 +310,15 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
     zIndex: 2,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
-    padding: 4,
+    padding: 5,
   },
   productImage: {
     width: '100%',
-    height: 180,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    height: 168,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   productBody: {
     paddingTop: 14,
@@ -327,12 +371,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 18,
     bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 58,
+    height: 58,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 5,
+    elevation: 6,
+    shadowColor: '#6366f1',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
   },
   modalBackdrop: {
     flex: 1,
@@ -341,10 +389,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
+    borderRadius: 22,
+    padding: 18,
     gap: 12,
+    elevation: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
   },
   modalTitle: { fontSize: 17, fontWeight: '600' },
   modalActions: { flexDirection: 'row', gap: 10 },

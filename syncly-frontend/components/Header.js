@@ -10,11 +10,19 @@ export default function Header({ title, subtitle, rightIcon, onRightPress }) {
     <View style={styles.wrap}>
       <View style={styles.copy}>
         <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
-        {subtitle ? <Text style={[styles.subtitle, { color: palette.textMuted }]}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: palette.textMuted }]} numberOfLines={2}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {rightIcon ? (
-        <Pressable onPress={onRightPress} style={[styles.iconButton, { backgroundColor: palette.surfaceSoft, borderColor: palette.border }]}>
-          <MaterialCommunityIcons name={rightIcon} size={20} color={palette.text} />
+        <Pressable
+          onPress={onRightPress}
+          style={[styles.iconButton, { backgroundColor: palette.primarySoft }]}
+          hitSlop={10}
+        >
+          <MaterialCommunityIcons name={rightIcon} size={22} color={palette.primary} />
         </Pressable>
       ) : null}
     </View>
@@ -27,15 +35,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 18,
   },
   copy: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    letterSpacing: -0.2,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.6,
     marginBottom: 4,
   },
   subtitle: {
@@ -44,10 +52,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: 1,
+    width: 44,
+    height: 44,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },

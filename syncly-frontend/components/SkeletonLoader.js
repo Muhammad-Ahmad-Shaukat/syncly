@@ -20,7 +20,7 @@ export default function SkeletonLoader({ height = 18, width = '100%', style }) {
     return () => animation.stop();
   }, [opacity]);
 
-  return <Animated.View style={[styles.block, { height, width, backgroundColor: palette.border, opacity }, style]} />;
+  return <Animated.View style={[styles.block, { height, width, backgroundColor: palette.primarySoft, opacity }, style]} />;
 }
 
 export function SkeletonCard() {

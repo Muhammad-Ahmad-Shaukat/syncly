@@ -5,6 +5,7 @@ import {
     Store,
     Product,
     Order,
+    Customer,
     SyncRunLog,
     SyncConflict,
     SyncEventLog
@@ -95,32 +96,38 @@ router.get("/products", requireMerchantAuth, async (req, res) => {
             { syncly_public_id: { [Op.like]: `%${search}%` } }
         ];
     }
-    const rows = await Product.findAll({
-        where,
-        include: [{ model: Store, attributes: ["id", "store_name", "platform"] }],
-        order: [["updated_at", "DESC"]],
-        limit: 500
-    });
-    res.json({
-        success: true,
-        data: rows.map((p) => {
-            const j = p.toJSON();
-            return {
-                id: j.id,
-                syncly_public_id: j.syncly_public_id,
-                title: j.title,
-                sku: j.sku,
-                status: j.status,
-                price: j.price,
-                inventory_quantity: j.inventory_quantity,
-                platform: j.platform,
-                image_url: j.image_url,
-                store_id: j.store_id,
-                store: j.Store,
-                last_synced_at: j.last_synced_at
-            };
-        })
-    });
+    try {
+        const rows = await Product.findAll({
+            where,
+            include: [{ model: Store, attributes: ["id", "store_name", "platform"] }],
+            order: [["updated_at", "DESC"]],
+            limit: 500
+        });
+        res.json({
+            success: true,
+            data: rows.map((p) => {
+                const j = p.toJSON();
+                return {
+                    id: j.id,
+                    syncly_public_id: j.syncly_public_id,
+                    title: j.title,
+                    sku: j.sku,
+                    status: j.status,
+                    price: j.price,
+                    inventory_quantity: j.inventory_quantity,
+                    platform: j.platform,
+                    image_url: j.image_url,
+                    store_id: j.store_id,
+                    store: j.Store,
+                    last_synced_at: j.last_synced_at
+                };
+            })
+        });
+    } catch (err) {
+        const sqlMsg = err?.parent?.sqlMessage || err?.original?.sqlMessage || err?.message;
+        console.error("[syncly-merchant-router] GET /products failed:", sqlMsg);
+        res.status(500).json({ success: false, error: "Could not load products.", detail: sqlMsg });
+    }
 });
 
 router.get("/products/by-public-id/:publicId", requireMerchantAuth, async (req, res) => {
@@ -173,6 +180,151 @@ router.get("/orders", requireMerchantAuth, async (req, res) => {
             };
         })
     });
+});
+
+router.get("/customers", requireMerchantAuth, async (req, res) => {
+    const storeIds = await storeIdsForUser(req.mobileUserId);
+    if (!storeIds.length) {
+        return res.json({ success: true, data: [] });
+    }
+    const { platform } = req.query;
+    const where = { store_id: storeIds };
+    if (platform && ["shopify", "woocommerce"].includes(platform)) {
+        where.platform = platform;
+    }
+    const rows = await Customer.findAll({
+        where,
+        include: [{ model: Store, attributes: ["id", "store_name", "platform"] }],
+        order: [["updated_at", "DESC"]],
+        limit: 300
+    });
+    res.json({
+        success: true,
+        data: rows.map((c) => {
+            const j = c.toJSON();
+            return {
+                id: j.id,
+                email: j.email,
+                first_name: j.first_name,
+                last_name: j.last_name,
+                status: j.status,
+                platform: j.platform,
+                store_id: j.store_id,
+                store: j.Store,
+                platform_customer_id: j.platform_customer_id,
+                last_synced_at: j.last_synced_at
+            };
+        })
+    });
+});
+
+router.patch("/customers/:id", requireMerchantAuth, async (req, res) => {
+    const storeIds = await storeIdsForUser(req.mobileUserId);
+    const row = await Customer.findOne({
+        where: { id: req.params.id, store_id: storeIds }
+    });
+    if (!row) {
+        return res.status(404).json({ success: false, error: "Customer not found." });
+    }
+    const { email, first_name: firstName, last_name: lastName, status } = req.body || {};
+    const updates = {};
+    if (email !== undefined) updates.email = email;
+    if (firstName !== undefined) updates.first_name = firstName;
+    if (lastName !== undefined) updates.last_name = lastName;
+    if (status !== undefined) updates.status = status;
+    await row.update(updates);
+    const data = {};
+    if (email !== undefined) data.email = row.email;
+    if (firstName !== undefined) data.first_name = row.first_name;
+    if (lastName !== undefined) data.last_name = row.last_name;
+    if (status !== undefined) data.status = row.status;
+    if (Object.keys(data).length) {
+        await enqueueSyncJob({
+            storeId: row.store_id,
+            queueType: "dispatch",
+            entityType: "customer",
+            operation: "update",
+            idempotencyKey: `syncly-merchant-cust-${row.id}-${Date.now()}`,
+            payload: {
+                command: {
+                    entity: "customer",
+                    operation: "update",
+                    external_id: String(row.platform_customer_id),
+                    data
+                }
+            }
+        });
+    }
+    res.json({ success: true, data: row.toJSON() });
+});
+
+router.patch("/products/:id", requireMerchantAuth, async (req, res) => {
+    const storeIds = await storeIdsForUser(req.mobileUserId);
+    const product = await Product.findOne({
+        where: { id: req.params.id, store_id: storeIds }
+    });
+    if (!product) {
+        return res.status(404).json({ success: false, error: "Product not found." });
+    }
+    const { price, inventory_quantity: inv, status, title } = req.body || {};
+    const updates = {};
+    if (price !== undefined) updates.price = price;
+    if (inv !== undefined) updates.inventory_quantity = inv;
+    if (status !== undefined) updates.status = status;
+    if (title !== undefined) updates.title = title;
+    await product.update(updates);
+    const fields = {};
+    if (price !== undefined) fields.price = product.price;
+    if (inv !== undefined) fields.inventory_quantity = product.inventory_quantity;
+    if (status !== undefined) fields.status = product.status;
+    if (title !== undefined) fields.title = product.title;
+    if (Object.keys(fields).length) {
+        await enqueueSyncJob({
+            storeId: product.store_id,
+            queueType: "dispatch",
+            entityType: "product",
+            operation: "update",
+            idempotencyKey: `syncly-merchant-p-${product.id}-${Date.now()}`,
+            payload: {
+                command: {
+                    action: "update_product",
+                    platform_product_id: product.platform_product_id,
+                    fields
+                }
+            }
+        });
+    }
+    res.json({ success: true, data: product.toJSON() });
+});
+
+router.patch("/orders/:id", requireMerchantAuth, async (req, res) => {
+    const storeIds = await storeIdsForUser(req.mobileUserId);
+    const order = await Order.findOne({
+        where: { id: req.params.id, store_id: storeIds }
+    });
+    if (!order) {
+        return res.status(404).json({ success: false, error: "Order not found." });
+    }
+    const { status } = req.body || {};
+    if (status != null) {
+        await order.update({ status });
+        await enqueueSyncJob({
+            storeId: order.store_id,
+            queueType: "dispatch",
+            entityType: "order",
+            operation: "update",
+            idempotencyKey: `syncly-merchant-o-${order.id}-${Date.now()}`,
+            payload: {
+                command: {
+                    entity: "order",
+                    operation: "update",
+                    external_id: String(order.platform_order_id),
+                    data: { status }
+                }
+            }
+        });
+    }
+    res.json({ success: true, data: order.toJSON() });
 });
 
 router.get("/inventory/summary", requireMerchantAuth, async (req, res) => {
@@ -282,7 +434,7 @@ router.post("/sync/trigger", requireMerchantAuth, async (req, res) => {
     }
     const runs = [];
     for (const sid of storeIds) {
-        const run = await createRunLog(sid, "delta");
+        const run = await createRunLog(sid, scope === "full" ? "full" : "delta");
         runs.push(run);
         if (scope === "selective" && Array.isArray(productIds) && productIds.length) {
             const prods = await Product.findAll({

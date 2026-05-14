@@ -5,13 +5,13 @@ import { useThemePalette } from '../hooks/useThemePalette';
 export default function CustomButton({ title, onPress, loading = false, tone = 'primary', style, disabled = false }) {
   const palette = useThemePalette();
 
-  const colors = {
+  const tones = {
     primary: { backgroundColor: palette.primary, textColor: '#fff' },
     secondary: { backgroundColor: palette.surfaceSoft, textColor: palette.text },
     danger: { backgroundColor: palette.danger, textColor: '#fff' },
   };
 
-  const selected = colors[tone] || colors.primary;
+  const selected = tones[tone] || tones.primary;
 
   return (
     <Pressable
@@ -19,25 +19,29 @@ export default function CustomButton({ title, onPress, loading = false, tone = '
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: selected.backgroundColor, opacity: disabled ? 0.65 : pressed ? 0.9 : 1 },
+        { backgroundColor: selected.backgroundColor, opacity: disabled ? 0.55 : pressed ? 0.88 : 1 },
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={selected.textColor} /> : <Text style={[styles.buttonText, { color: selected.textColor }]}>{title}</Text>}
+      {loading ? (
+        <ActivityIndicator color={selected.textColor} />
+      ) : (
+        <Text style={[styles.buttonText, { color: selected.textColor }]}>{title}</Text>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48,
-    borderRadius: 8,
+    minHeight: 50,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 22,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });

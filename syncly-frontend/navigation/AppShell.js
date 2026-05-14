@@ -28,6 +28,7 @@ import CampaignsScreen from '../screens/CampaignsScreen';
 import InboxScreen from '../screens/InboxScreen';
 import PricingScreen from '../screens/PricingScreen';
 import ProductDetailScreen from '../screens/ProductDetailScreen';
+import StoresScreen from '../screens/StoresScreen';
 import { useThemePalette } from '../hooks/useThemePalette';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -56,12 +57,15 @@ function getInitials(name) {
     .join('');
 }
 
+const MENU_ACCENT = ['#6366f1', '#2dd4bf', '#a78bfa', '#fb7185', '#38bdf8', '#fbbf24', '#34d399', '#f472b6'];
+
 function MenuOverlay({ visible, onClose, user }) {
   const palette = useThemePalette();
 
   const items = [
     { label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home', screen: 'Dashboard' },
     { label: 'Inventory', icon: 'package-variant-closed', tab: 'Inventory', screen: 'Products' },
+    { label: 'Stores', icon: 'store-settings-outline', tab: 'Home', screen: 'Stores' },
     { label: 'Sync', icon: 'sync', tab: 'Home', screen: 'Sync' },
     { label: 'Orders', icon: 'receipt-text-outline', tab: 'Orders', screen: 'OrdersMain' },
     { label: 'Campaigns', icon: 'email-outline', tab: 'Home', screen: 'Campaigns' },
@@ -76,32 +80,36 @@ function MenuOverlay({ visible, onClose, user }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlayBackdrop} onPress={onClose}>
-        <Pressable style={[styles.overlayPanel, { backgroundColor: palette.surface, borderColor: palette.border }]} onPress={() => {}}>
-          <View style={[styles.overlayHeader, { borderBottomColor: palette.border }]}>
-            <View style={[styles.brandMark, { backgroundColor: palette.primarySoft }]}>
-              <MaterialCommunityIcons name="shopping-outline" size={22} color={palette.primary} />
+        <Pressable style={[styles.overlayPanel, { backgroundColor: palette.surface }]} onPress={() => {}}>
+          <View style={styles.overlayHeader}>
+            <View style={[styles.brandMark, { backgroundColor: palette.primary }]}>
+              <MaterialCommunityIcons name="lightning-bolt" size={24} color="#fff" />
             </View>
             <View style={styles.overlayCopy}>
               <Text style={[styles.brandTitle, { color: palette.text }]}>Syncly</Text>
-              <Text style={[styles.brandSubtitle, { color: palette.textMuted }]}>Shopify + WooCommerce inventory</Text>
+              <Text style={[styles.brandSubtitle, { color: palette.textMuted }]}>Inventory & sync</Text>
             </View>
           </View>
 
-          <View style={[styles.profileCard, { backgroundColor: palette.surfaceSoft, borderColor: palette.border }]}>
-            <View style={[styles.avatarCircle, { backgroundColor: palette.primary }]}>
+          <View style={[styles.profileRow, { backgroundColor: palette.surfaceSoft }]}>
+            <View style={[styles.avatarCircle, { backgroundColor: palette.coral }]}>
               <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
             </View>
             <View style={styles.profileCopy}>
-              <Text style={[styles.profileName, { color: palette.text }]}>{user?.name || 'Admin User'}</Text>
-              <Text style={[styles.profileMeta, { color: palette.textMuted }]}>{user?.role || 'Central Admin'}</Text>
+              <Text style={[styles.profileName, { color: palette.text }]} numberOfLines={1}>
+                {user?.name || 'Admin'}
+              </Text>
+              <Text style={[styles.profileMeta, { color: palette.textMuted }]} numberOfLines={1}>
+                {user?.role || 'Admin'}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.menuList}>
-            {items.map((item) => (
+          <View style={styles.menuGrid}>
+            {items.map((item, index) => (
               <Pressable
                 key={`${item.tab}-${item.screen}`}
-                style={[styles.menuItem, { borderBottomColor: palette.border }]}
+                style={[styles.menuTile, { backgroundColor: MENU_ACCENT[index % MENU_ACCENT.length] }]}
                 onPress={() => {
                   onClose();
                   if (navigationRef.isReady()) {
@@ -109,8 +117,10 @@ function MenuOverlay({ visible, onClose, user }) {
                   }
                 }}
               >
-                <MaterialCommunityIcons name={item.icon} size={20} color={palette.text} />
-                <Text style={[styles.menuLabel, { color: palette.text }]}>{item.label}</Text>
+                <MaterialCommunityIcons name={item.icon} size={22} color="#fff" />
+                <Text style={styles.menuTileLabel} numberOfLines={2}>
+                  {item.label}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -145,6 +155,7 @@ function HomeNavigator() {
         }}
       />
       <HomeStack.Screen name="Sync" component={SyncScreen} options={{ title: 'Sync' }} />
+      <HomeStack.Screen name="Stores" component={StoresScreen} options={{ title: 'Connected stores' }} />
       <HomeStack.Screen name="Campaigns" component={CampaignsScreen} options={{ title: 'Campaigns' }} />
       <HomeStack.Screen name="Inbox" component={InboxScreen} options={{ title: 'Inbox' }} />
       <HomeStack.Screen name="Pricing" component={PricingScreen} options={{ title: 'Pricing' }} />
@@ -199,6 +210,7 @@ function SettingsNavigator() {
       }}
     >
       <SettingsStack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <SettingsStack.Screen name="Stores" component={StoresScreen} options={{ title: 'Connected stores' }} />
       <SettingsStack.Screen name="Logout" component={LogoutScreen} options={{ title: 'Logout', presentation: 'modal' }} />
     </SettingsStack.Navigator>
   );
@@ -215,7 +227,19 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: tabBarActive,
         tabBarInactiveTintColor: tabBarInactive,
-        tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.border },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+        tabBarStyle: {
+          backgroundColor: palette.surface,
+          borderTopWidth: 0,
+          elevation: 16,
+          shadowColor: '#000',
+          shadowOpacity: 0.08,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: -4 },
+          height: 62,
+          paddingTop: 6,
+          paddingBottom: 6,
+        },
       }}
     >
       <Tab.Screen
@@ -272,7 +296,7 @@ function AppNavigator() {
 
   const paperTheme = {
     dark: settings.isDarkMode,
-    roundness: 14,
+    roundness: 18,
     colors: {
       primary: palette.primary,
       secondary: palette.accent,
@@ -344,35 +368,38 @@ const styles = StyleSheet.create({
   headerMenuButton: {
     marginLeft: 4,
     marginRight: 10,
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 999,
   },
   overlayBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
-    padding: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    padding: 18,
     justifyContent: 'flex-start',
   },
   overlayPanel: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 44,
+    borderRadius: 24,
+    padding: 18,
+    marginTop: 40,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
   },
   overlayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
+    marginBottom: 14,
   },
   brandMark: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -380,56 +407,66 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   brandTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   brandSubtitle: {
     marginTop: 2,
     fontSize: 13,
   },
-  profileCard: {
-    marginTop: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 12,
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 14,
   },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: '#fff',
     fontWeight: '800',
+    fontSize: 14,
   },
   profileCopy: {
     flex: 1,
   },
   profileName: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
     marginBottom: 2,
   },
   profileMeta: {
     fontSize: 12,
   },
-  menuList: {
-    marginTop: 14,
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  menuItem: {
+  menuTile: {
+    width: '48%',
+    minHeight: 76,
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
+    gap: 10,
   },
-  menuLabel: {
-    fontSize: 15,
+  menuTileLabel: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '700',
+    lineHeight: 17,
   },
 });

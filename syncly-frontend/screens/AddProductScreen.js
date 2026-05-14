@@ -112,7 +112,7 @@ export default function AddProductScreen() {
   return (
     <Screen scroll keyboardAvoiding>
       <View style={styles.container}>
-        <Header title="Add Product" subtitle="Creates a canonical row and queues a connector dispatch job." />
+        <Header title="Add Product" subtitle="Save to catalog & queue dispatch" />
 
         <Card>
           <Text style={[styles.label, { color: palette.text }]}>Store</Text>

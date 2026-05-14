@@ -1,5 +1,4 @@
 import { StyleSheet, View } from 'react-native';
-import { Card as PaperCard } from 'react-native-paper';
 
 import { useThemePalette } from '../hooks/useThemePalette';
 
@@ -7,26 +6,31 @@ export default function Card({ children, style, contentStyle }) {
   const palette = useThemePalette();
 
   return (
-    <PaperCard style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }, style]} mode="elevated">
-      <PaperCard.Content style={[styles.content, contentStyle]}>
-        <View>{children}</View>
-      </PaperCard.Content>
-    </PaperCard>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: palette.surface,
+          shadowColor: palette.text,
+        },
+        style,
+      ]}
+    >
+      <View style={[styles.content, contentStyle]}>{children}</View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    borderRadius: 14,
-    marginBottom: 14,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
+    borderRadius: 20,
+    marginBottom: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
   },
-  content: {
-    paddingVertical: 14,
-  },
+  content: {},
 });

@@ -59,13 +59,36 @@ function syncly_api_request($method, $path, $body = null, $token = '') {
     $response = wp_remote_request($url, $args);
 
     if (is_wp_error($response)) {
-        return ['success' => false, 'error' => 'Connection failed'];
+        return ['success' => false, 'error' => $response->get_error_message()];
     }
 
-    $body = json_decode(wp_remote_retrieve_body($response), true);
+    $code = (int) wp_remote_retrieve_response_code($response);
+    $raw = wp_remote_retrieve_body($response);
+    $body = json_decode($raw, true);
+
     if (!is_array($body)) {
-        return ['success' => false, 'error' => 'Invalid response'];
+        $snippet = trim(wp_strip_all_tags((string) $raw));
+        if (strlen($snippet) > 200) {
+            $snippet = substr($snippet, 0, 200) . '…';
+        }
+        $msg = $snippet !== '' ? $snippet : 'Empty response';
+        return [
+            'success' => false,
+            'error' => sprintf('HTTP %d — %s', $code, $msg),
+        ];
     }
+
+    if ($code >= 400) {
+        $err = isset($body['error']) && is_string($body['error']) ? $body['error'] : null;
+        if (!$err && isset($body['message']) && is_string($body['message'])) {
+            $err = $body['message'];
+        }
+        if (!$err) {
+            $err = sprintf('Request failed (HTTP %d)', $code);
+        }
+        return array_merge($body, ['success' => false, 'error' => $err]);
+    }
+
     return $body;
 }
 

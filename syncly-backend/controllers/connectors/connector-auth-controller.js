@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { Store, User, SyncEventLog, SyncJob, SyncRunLog } from "../../db/models.js";
+import { Store, User, SyncEventLog, SyncJob, SyncRunLog, SyncDeadLetter } from "../../db/models.js";
 import { userService } from "../../routes/user-routes/user-service.js";
 import {
     connectorTokenExpiry,
@@ -14,6 +14,7 @@ import {
     finishRunLog,
     logIncomingEvent
 } from "../../services/sync/sync-service.js";
+import { runShopifyCatalogImport } from "../../services/connectors/shopify-catalog-pull.js";
 
 function buildIdempotencyKey(input = "") {
     return crypto.createHash("sha1").update(input).digest("hex");
@@ -41,7 +42,19 @@ export async function connectorExchange(req, res) {
             store_name,
             plugin_callback_url,
             app_callback_url
-        } = req.body;
+        } = req.body || {};
+
+        const emailTrim = typeof email === "string" ? email.trim() : "";
+        const pwdLen = password == null ? 0 : String(password).length;
+        console.log("[connector/auth/exchange]", {
+            platform,
+            bodyKeys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
+            email: emailTrim,
+            emailLen: emailTrim.length,
+            passwordLen: pwdLen,
+            store_url: store_url ? String(store_url).slice(0, 120) : null
+        });
+
         const user = await userService.authenticate(email, password);
 
         const callbackUrl = app_callback_url || plugin_callback_url || null;
@@ -89,6 +102,7 @@ export async function connectorExchange(req, res) {
             }
         });
     } catch (error) {
+        console.warn("[connector/auth/exchange] rejected:", error.message);
         return res.status(401).json({ success: false, error: error.message });
     }
 }
@@ -133,6 +147,44 @@ export async function connectorRevoke(req, res) {
         store.connector_token_revoked_at = new Date();
         await store.save();
         return res.json({ success: true, message: "Connector token revoked" });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+export async function saveShopifySession(req, res) {
+    try {
+        const store = await Store.findByPk(req.connector.storeId);
+        if (!store || store.platform !== "shopify") {
+            return res.status(400).json({ success: false, error: "Store not found or not a Shopify store" });
+        }
+        const { shopify_access_token: shopifyToken, shop_domain: shopDomain } = req.body || {};
+        if (!shopifyToken) {
+            return res.status(400).json({ success: false, error: "shopify_access_token is required" });
+        }
+        const normalizedStoreUrl = String(store.store_url || "").replace(/^https?:\/\//, "");
+        if (shopDomain && String(shopDomain).replace(/^https?:\/\//, "") !== normalizedStoreUrl) {
+            return res.status(400).json({ success: false, error: "shop_domain does not match linked store" });
+        }
+        store.access_token = shopifyToken;
+        await store.save();
+        return res.json({ success: true, message: "Shopify Admin token stored" });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+export async function initialImportShopify(req, res) {
+    try {
+        const store = await Store.findByPk(req.connector.storeId);
+        if (!store || store.platform !== "shopify") {
+            return res.status(400).json({ success: false, error: "Invalid store" });
+        }
+        if (!store.access_token) {
+            return res.status(400).json({ success: false, error: "Missing Shopify Admin token; complete OAuth session save first" });
+        }
+        await runShopifyCatalogImport(store);
+        return res.json({ success: true, message: "Initial catalog import queued/processed" });
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message });
     }

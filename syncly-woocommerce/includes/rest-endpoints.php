@@ -11,6 +11,23 @@ function syncly_verify_command_request(WP_REST_Request $request) {
     return true;
 }
 
+function syncly_normalize_woo_product_status($status) {
+    $s = is_string($status) ? strtolower(trim($status)) : '';
+    if ($s === '' || $s === 'draft') {
+        return 'draft';
+    }
+    if ($s === 'active' || $s === 'publish') {
+        return 'publish';
+    }
+    if ($s === 'archived' || $s === 'private') {
+        return 'private';
+    }
+    if (in_array($s, ['publish', 'draft', 'private', 'pending'], true)) {
+        return $s;
+    }
+    return 'draft';
+}
+
 function syncly_apply_product_command($command) {
     $external_id = (int) ($command['external_id'] ?? 0);
     $operation = $command['operation'] ?? 'update';
@@ -27,13 +44,33 @@ function syncly_apply_product_command($command) {
         $product = new WC_Product_Simple();
     }
     if (!empty($data['title'])) $product->set_name($data['title']);
-    if (isset($data['price'])) $product->set_regular_price((string) $data['price']);
-    if (!empty($data['status'])) $product->set_status($data['status']);
+    if (isset($data['price']) && $data['price'] !== '' && $data['price'] !== null) {
+        $product->set_regular_price((string) $data['price']);
+    }
+    if (!empty($data['status'])) {
+        $product->set_status(syncly_normalize_woo_product_status($data['status']));
+    }
+    if (isset($data['sku']) && is_string($data['sku'])) {
+        $sku_val = trim($data['sku']);
+        if ($sku_val !== '') {
+            $product->set_sku($sku_val);
+        }
+    }
+    if (!empty($data['description']) && is_string($data['description'])) {
+        $product->set_short_description(wp_kses_post($data['description']));
+    }
     if (isset($data['inventory_quantity'])) {
         $product->set_manage_stock(true);
         $product->set_stock_quantity((int) $data['inventory_quantity']);
     }
-    $product_id = $product->save();
+    try {
+        $product_id = $product->save();
+    } catch (Exception $e) {
+        return ['applied' => false, 'reason' => $e->getMessage()];
+    }
+    if (!$product_id) {
+        return ['applied' => false, 'reason' => 'WooCommerce product save failed'];
+    }
     syncly_add_suppression_marker('product', $product_id);
     return ['applied' => true, 'external_id' => $product_id];
 }
@@ -78,10 +115,23 @@ function syncly_handle_backend_command(WP_REST_Request $request) {
     return rest_ensure_response($result);
 }
 
+function syncly_handle_catalog_push(WP_REST_Request $request) {
+    if (!function_exists('syncly_push_products_catalog_to_backend')) {
+        return new WP_Error('syncly_missing', 'Sync engine not loaded', ['status' => 500]);
+    }
+    $result = syncly_push_products_catalog_to_backend();
+    return rest_ensure_response($result);
+}
+
 add_action('rest_api_init', function() {
     register_rest_route('syncly/v1', '/commands', [
         'methods' => 'POST',
         'callback' => 'syncly_handle_backend_command',
+        'permission_callback' => 'syncly_verify_command_request'
+    ]);
+    register_rest_route('syncly/v1', '/catalog-push', [
+        'methods' => 'POST',
+        'callback' => 'syncly_handle_catalog_push',
         'permission_callback' => 'syncly_verify_command_request'
     ]);
 });

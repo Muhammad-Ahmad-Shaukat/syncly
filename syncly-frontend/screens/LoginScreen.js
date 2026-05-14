@@ -76,15 +76,16 @@ export default function LoginScreen() {
     <Screen scroll keyboardAvoiding>
       <View style={[styles.root, { backgroundColor: palette.background }]}>
         <View style={styles.hero}>
-          <View style={[styles.logoMark, { backgroundColor: palette.primarySoft }]}>
-            <Text style={[styles.logoLetter, { color: palette.primary }]}>S</Text>
+          <View style={styles.logoCluster}>
+            <View style={[styles.logoBlob, { backgroundColor: palette.coral }]} />
+            <View style={[styles.logoBlobOverlap, { backgroundColor: palette.primary }]} />
           </View>
           <Text style={[styles.brand, { color: palette.text }]}>Syncly</Text>
-          <Text style={[styles.copy, { color: palette.textMuted }]}>Manage Shopify and WooCommerce inventory, sync, and orders from one mobile workspace.</Text>
+          <Text style={[styles.copy, { color: palette.textMuted }]}>Shopify & Woo inventory in one place.</Text>
         </View>
 
         <Card>
-          <Header title="Sign in" subtitle="Use your admin credentials to continue." />
+          <Header title="Sign in" subtitle="Admin email & password" />
           <CustomInput label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="you@example.com" />
           <CustomInput label="Password" value={password} onChangeText={setPassword} secureTextEntry placeholder="••••••••" />
 
@@ -115,31 +116,41 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 20,
   },
-  logoMark: {
-    width: 70,
-    height: 70,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
+  logoCluster: {
+    width: 72,
+    height: 56,
+    marginBottom: 16,
   },
-  logoLetter: {
-    fontSize: 28,
-    fontWeight: '900',
+  logoBlob: {
+    position: 'absolute',
+    left: 0,
+    top: 4,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+  },
+  logoBlobOverlap: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    opacity: 0.95,
   },
   brand: {
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -0.7,
-    marginBottom: 10,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginBottom: 8,
   },
   copy: {
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
-    maxWidth: 320,
+    maxWidth: 300,
   },
   error: {
     marginBottom: 12,

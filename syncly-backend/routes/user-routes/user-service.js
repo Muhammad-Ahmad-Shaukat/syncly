@@ -18,18 +18,25 @@ export const userService = {
     },
 
     async authenticate(email, password) {
-        const user = await User.findOne({ where: { email } });
+        const normalizedEmail = typeof email === "string" ? email.trim() : "";
+        const plainPassword = password == null ? "" : String(password);
+
+        const user = await User.findOne({ where: { email: normalizedEmail } });
         if (!user) {
+            console.warn("[userService.authenticate] no user for email (trimmed, exact match):", JSON.stringify(normalizedEmail));
             throw new Error('Invalid email or password');
         }
         if (!user.is_active) {
+            console.warn("[userService.authenticate] inactive user id=", user.id);
             throw new Error('Account is deactivated');
         }
         if (user.isLocked()) {
+            console.warn("[userService.authenticate] locked user id=", user.id);
             throw new Error('Account temporarily locked. Try again later.');
         }
-        const valid = await user.comparePassword(password);
+        const valid = await user.comparePassword(plainPassword);
         if (!valid) {
+            console.warn("[userService.authenticate] password mismatch user id=", user.id, "submittedPwdLen=", plainPassword.length);
             await user.incrementLoginAttempts();
             throw new Error('Invalid email or password');
         }

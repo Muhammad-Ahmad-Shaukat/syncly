@@ -18,6 +18,9 @@ export function AppStateProvider({ children }) {
     isDarkMode: false,
     shopifyApiUrl: 'https://admin.shopify.com/store/demo-store',
     wooCommerceApiUrl: 'https://demo.woocommerce.com/wp-json',
+    compactLayout: false,
+    reduceMotion: false,
+    showSyncTips: true,
   });
   const [bootstrapDone, setBootstrapDone] = useState(false);
 
@@ -80,9 +83,9 @@ export function AppStateProvider({ children }) {
     setUser(null);
   }
 
-  function updateSettings(nextSettings) {
+  const updateSettings = useCallback((nextSettings) => {
     setSettings((current) => ({ ...current, ...nextSettings }));
-  }
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -95,7 +98,7 @@ export function AppStateProvider({ children }) {
       logout,
       updateSettings,
     }),
-    [isAuthenticated, user, settings, bootstrapDone, completeSession, login]
+    [isAuthenticated, user, settings, bootstrapDone, completeSession, login, updateSettings]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

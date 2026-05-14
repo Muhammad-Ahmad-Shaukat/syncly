@@ -175,3 +175,40 @@ function syncly_run_initial_sync() {
     return ['success' => true];
 }
 
+/**
+ * Push all WooCommerce products to the Syncly backend (used by full sync / catalog-pull).
+ */
+function syncly_push_products_catalog_to_backend() {
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(300);
+    }
+    $token = syncly_get_valid_access_token();
+    if (!$token) {
+        return ['success' => false, 'error' => 'No valid connector token'];
+    }
+    $entity = 'product';
+    $page = 1;
+    $total = 0;
+    while (true) {
+        $records = syncly_collect_initial_batch($entity, $page, 50);
+        if (empty($records)) {
+            break;
+        }
+        $result = syncly_api_request('POST', 'api/connectors/woocommerce/sync/batch', [
+            'entity' => $entity,
+            'records' => $records,
+            'origin' => 'woocommerce',
+            'run_type' => 'initial',
+        ], $token);
+        if (empty($result['success'])) {
+            return ['success' => false, 'error' => $result['error'] ?? 'Catalog push failed'];
+        }
+        $total += count($records);
+        if (count($records) < 50) {
+            break;
+        }
+        $page++;
+    }
+    return ['success' => true, 'products_sent' => $total];
+}
+

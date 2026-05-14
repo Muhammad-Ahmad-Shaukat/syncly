@@ -1,0 +1,24 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "0017dcad6cae9d437db23bd057fe32a6"
+application_url = "https://example.com"
+embedded = true
+name = "syncly"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products,read_orders,write_orders,read_customers,write_customers,read_inventory"
+
+[webhooks]
+api_version = "2024-10"
+
+[[webhooks.subscriptions]]
+topics = [ "products/create", "products/update", "products/delete", "orders/create", "orders/updated", "orders/delete", "customers/create", "customers/update", "customers/delete", "app/uninstalled" ]
+uri = "/api/webhooks"
+
+[auth]
+redirect_urls = [ "https://example.com/api/auth" ]
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true

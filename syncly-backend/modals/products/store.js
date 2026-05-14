@@ -83,6 +83,18 @@ const Store = sequelize.define('Store', {
         type: DataTypes.STRING,
         allowNull: true,
         comment: 'Shared secret for backend signed commands to plugin'
+    },
+    /** When true (or SYNCLY_CROSS_STORE_FANOUT), product upserts fan out to peer stores. */
+    cross_sync_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    /** Store IDs (same user) to receive cross-store product updates; empty = all other stores when enabled. */
+    cross_sync_peer_ids: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: null
     }
 }, {
     tableName: 'stores',

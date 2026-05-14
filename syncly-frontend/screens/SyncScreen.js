@@ -1,30 +1,44 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import Screen from '../components/Screen';
 import Card from '../components/Card';
 import CustomButton from '../components/CustomButton';
 import Header from '../components/Header';
+import { useAppState } from '../hooks/useAppState';
 import { useThemePalette } from '../hooks/useThemePalette';
 import { apiRequest } from '../services/api';
 
 export default function SyncScreen() {
+  const navigation = useNavigation();
   const palette = useThemePalette();
+  const { settings } = useAppState();
   const [runs, setRuns] = useState([]);
   const [conflicts, setConflicts] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [selectedStoreIds, setSelectedStoreIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [r, c] = await Promise.all([
+    const [r, c, s] = await Promise.all([
       apiRequest('/api/mobile/sync/runs'),
       apiRequest('/api/mobile/sync/conflicts'),
+      apiRequest('/api/mobile/stores'),
     ]);
     if (r.ok && r.data?.data) setRuns(r.data.data);
     if (c.ok && c.data?.data) setConflicts(c.data.data);
+    if (s.ok && Array.isArray(s.data?.data)) {
+      setStores(s.data.data);
+      setSelectedStoreIds((prev) => {
+        if (prev.size > 0) return prev;
+        return new Set(s.data.data.map((x) => x.id));
+      });
+    }
     setLoading(false);
   }, []);
 
@@ -32,19 +46,36 @@ export default function SyncScreen() {
     load();
   }, [load]);
 
+  function toggleStoreTarget(id) {
+    setSelectedStoreIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function trigger(scope) {
     setBusy(true);
     setMessage('');
+    const body = { scope };
+    if (stores.length && selectedStoreIds.size > 0) {
+      body.store_ids = Array.from(selectedStoreIds);
+    }
     const { ok, data } = await apiRequest('/api/mobile/sync/trigger', {
       method: 'POST',
-      body: { scope },
+      body,
     });
     setBusy(false);
     if (!ok) {
       setMessage(data?.error || 'Sync failed');
       return;
     }
-    setMessage(scope === 'selective' ? 'Selective jobs queued (with product list on backend).' : 'Full sync jobs queued.');
+    setMessage(
+      scope === 'selective'
+        ? 'Selective jobs queued (uses product_ids when provided on backend).'
+        : `Full sync queued for ${body.store_ids?.length ?? 'all'} store(s): catalog → DB, then DB → store (runs in the background).`
+    );
     load();
   }
 
@@ -63,19 +94,49 @@ export default function SyncScreen() {
   return (
     <Screen scroll>
       <View style={styles.pad}>
-        <Header title="Sync" subtitle="History, manual runs, and open conflicts." />
+        <Header title="Sync" subtitle="History & manual runs" />
 
         <Card>
-          <Text style={[styles.section, { color: palette.text }]}>Actions</Text>
+          {settings.showSyncTips !== false ? (
+            <Text style={[styles.helper, { color: palette.textMuted }]}>
+              Full sync: store → database, then every catalog row back to that store. Cross-store rules:{' '}
+              <Text style={{ color: palette.primary, fontWeight: '700' }} onPress={() => navigation.navigate('Stores')}>
+                Stores
+              </Text>
+              .
+            </Text>
+          ) : null}
+
+          {stores.length > 0 ? (
+            <View style={{ marginBottom: 14 }}>
+              <Text style={[styles.subLabel, { color: palette.textMuted }]}>Stores</Text>
+              {stores.map((st) => (
+                <Pressable
+                  key={st.id}
+                  style={[styles.storePick, { backgroundColor: selectedStoreIds.has(st.id) ? palette.primarySoft : palette.chipInactive }]}
+                  onPress={() => toggleStoreTarget(st.id)}
+                >
+                  <MaterialCommunityIcons
+                    name={selectedStoreIds.has(st.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                    size={22}
+                    color={selectedStoreIds.has(st.id) ? palette.primary : palette.textMuted}
+                  />
+                  <Text style={{ color: palette.text, flex: 1 }}>{st.store_name}</Text>
+                  <Text style={{ color: palette.textMuted, fontSize: 12 }}>{st.platform}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
           <View style={styles.row}>
             <CustomButton title="Full sync" onPress={() => trigger('full')} loading={busy} style={styles.flexBtn} />
-            <CustomButton title="Selective (demo)" tone="secondary" onPress={() => trigger('selective')} loading={busy} style={styles.flexBtn} />
+            {/* <CustomButton title="Selective (demo)" tone="secondary" onPress={() => trigger('selective')} loading={busy} style={styles.flexBtn} /> */}
           </View>
           {message ? <Text style={{ color: palette.textMuted, marginTop: 8 }}>{message}</Text> : null}
         </Card>
 
         <Card>
-          <Text style={[styles.section, { color: palette.text }]}>Open conflicts</Text>
+          <Text style={[styles.section, { color: palette.textMuted }]}>Conflicts</Text>
           {loading ? (
             <Text style={{ color: palette.textMuted }}>Loading…</Text>
           ) : conflicts.filter((x) => x.status === 'open').length === 0 ? (
@@ -84,20 +145,14 @@ export default function SyncScreen() {
             conflicts
               .filter((x) => x.status === 'open')
               .map((c) => (
-                <View key={c.id} style={[styles.conflict, { borderColor: palette.border }]}>
+                <View key={c.id} style={styles.conflict}>
                   <Text style={{ color: palette.text, fontWeight: '600' }}>SKU {c.sku}</Text>
                   <View style={styles.row}>
-                    <Pressable
-                      style={[styles.mini, { borderColor: palette.border }]}
-                      onPress={() => resolveConflict(c.id, 'left')}
-                    >
-                      <Text style={{ color: palette.text }}>Keep left</Text>
+                    <Pressable style={styles.mini} onPress={() => resolveConflict(c.id, 'left')}>
+                      <Text style={{ color: palette.primary, fontWeight: '700' }}>Keep left</Text>
                     </Pressable>
-                    <Pressable
-                      style={[styles.mini, { borderColor: palette.border }]}
-                      onPress={() => resolveConflict(c.id, 'right')}
-                    >
-                      <Text style={{ color: palette.text }}>Keep right</Text>
+                    <Pressable style={styles.mini} onPress={() => resolveConflict(c.id, 'right')}>
+                      <Text style={{ color: palette.primary, fontWeight: '700' }}>Keep right</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -106,7 +161,7 @@ export default function SyncScreen() {
         </Card>
 
         <Card>
-          <Text style={[styles.section, { color: palette.text }]}>Recent runs</Text>
+          <Text style={[styles.section, { color: palette.textMuted }]}>Runs</Text>
           <FlatList
             data={runs}
             keyExtractor={(item) => String(item.id)}
@@ -132,10 +187,33 @@ export default function SyncScreen() {
 
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: 16, paddingTop: 8, gap: 12, paddingBottom: 32 },
-  section: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
+  section: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 10,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
+  helper: { fontSize: 14, lineHeight: 20, marginBottom: 14 },
+  subLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  storePick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
   row: { flexDirection: 'row', gap: 10 },
   flexBtn: { flex: 1 },
-  conflict: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 10 },
-  mini: { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  conflict: { borderRadius: 14, padding: 14, marginBottom: 10, backgroundColor: 'rgba(251, 113, 133, 0.12)' },
+  mini: { flex: 1, padding: 10, borderRadius: 12, alignItems: 'center', backgroundColor: 'rgba(99, 102, 241, 0.12)' },
   runRow: { flexDirection: 'row', gap: 10, paddingVertical: 8, alignItems: 'center' },
 });

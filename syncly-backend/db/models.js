@@ -1,4 +1,5 @@
 import { sequelize } from "./db.js";
+import { applySchemaPatches } from "./schema-patches.js";
 import User from "../modals/users.js";
 import productModels from "../modals/products/main-product.js";
 import Order from "../modals/orders.js";
@@ -59,6 +60,7 @@ SyncEventLog.belongsTo(Store, { foreignKey: "store_id" });
 export async function syncDatabase() {
     const alter = process.env.DB_SYNC_ALTER === "true";
     await sequelize.sync({ alter });
+    await applySchemaPatches();
 }
 
 export {
