@@ -57,10 +57,10 @@ function getInitials(name) {
     .join('');
 }
 
-const MENU_ACCENT = ['#6366f1', '#2dd4bf', '#a78bfa', '#fb7185', '#38bdf8', '#fbbf24', '#34d399', '#f472b6'];
 
 function MenuOverlay({ visible, onClose, user }) {
   const palette = useThemePalette();
+  const navBlock = { backgroundColor: palette.primarySoft };
 
   const items = [
     { label: 'Dashboard', icon: 'view-dashboard-outline', tab: 'Home', screen: 'Dashboard' },
@@ -91,8 +91,8 @@ function MenuOverlay({ visible, onClose, user }) {
             </View>
           </View>
 
-          <View style={[styles.profileRow, { backgroundColor: palette.surfaceSoft }]}>
-            <View style={[styles.avatarCircle, { backgroundColor: palette.coral }]}>
+          <View style={[styles.profileRow, navBlock]}>
+            <View style={[styles.avatarCircle, { backgroundColor: palette.primary }]}>
               <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
             </View>
             <View style={styles.profileCopy}>
@@ -106,10 +106,10 @@ function MenuOverlay({ visible, onClose, user }) {
           </View>
 
           <View style={styles.menuGrid}>
-            {items.map((item, index) => (
+            {items.map((item) => (
               <Pressable
                 key={`${item.tab}-${item.screen}`}
-                style={[styles.menuTile, { backgroundColor: MENU_ACCENT[index % MENU_ACCENT.length] }]}
+                style={({ pressed }) => [styles.menuTile, navBlock, pressed && { opacity: 0.92 }]}
                 onPress={() => {
                   onClose();
                   if (navigationRef.isReady()) {
@@ -117,8 +117,8 @@ function MenuOverlay({ visible, onClose, user }) {
                   }
                 }}
               >
-                <MaterialCommunityIcons name={item.icon} size={22} color="#fff" />
-                <Text style={styles.menuTileLabel} numberOfLines={2}>
+                <MaterialCommunityIcons name={item.icon} size={22} color={palette.primary} />
+                <Text style={[styles.menuTileLabel, { color: palette.text }]} numberOfLines={2}>
                   {item.label}
                 </Text>
               </Pressable>
@@ -464,7 +464,6 @@ const styles = StyleSheet.create({
   },
   menuTileLabel: {
     flex: 1,
-    color: '#fff',
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 17,
